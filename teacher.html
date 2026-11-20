@@ -88,6 +88,9 @@ td.pt { white-space: normal; min-width: 330px; }
 .res .ok { color: var(--good); } .res .bad { color: var(--bad); } .res .meh { color: var(--muted); }
 .pw { font: 800 1rem ui-monospace, Consolas, monospace; letter-spacing: .04em; color: var(--ink); background: var(--gold-soft); padding: 2px 6px; border-radius: 6px; }
 .det .acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.btn.del { color: var(--bad); border-color: var(--bad); }
+.btn.del:hover { background: var(--bad-soft); }
+.danger { margin-top: 18px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #slips { display: none; }
 @media print {
   body.slips > *:not(#slips) { display: none !important; }
@@ -119,6 +122,7 @@ td.pt { white-space: normal; min-width: 330px; }
       <span class="meta">Print or download now: passwords can't be shown again (you can always make a new one).</span></div>
   </section>
   <div class="tw"><table><thead><tr id="hd"></tr></thead><tbody id="rows"></tbody></table></div>
+  <div class="danger"><button class="btn del" type="button" id="delAll">Delete all student accounts…</button><span class="meta">For the end of the year. Deletes every student account and all their progress.</span></div>
   <p class="note">Parts: % right first time across every round of that part (teacher tick-offs and gift codes not counted). Green 80%+, gold 50–79%, red under 50%. Homework: best score, ✓ = passed (60%). Tap a student for their recent rounds.</p>
 </main>
 <div class="msg" id="msg" hidden></div>
@@ -271,7 +275,7 @@ td.pt { white-space: normal; min-width: 330px; }
     const f = $("find").value.trim().toLowerCase(), col = COLS.find(c => c.k === sortK);
     const list = all.filter(s => !f || s.name.toLowerCase().includes(f) || s.email.includes(f)).sort((a, b) => { const x = col.v(a), y = col.v(b); return x < y ? -1 : x > y ? 1 : 0; });
     $("hd").innerHTML = COLS.map(c => `<th data-k="${c.k}" class="${c.k === sortK ? "on" : ""}">${c.t}</th>`).join("");
-    if (!list.length) { $("rows").innerHTML = `<tr><td colspan="${COLS.length}" class="empty">${all.length ? "No student matches that." : "No students have signed in yet."}</td></tr>`; return; }
+    if (!list.length) { $("rows").innerHTML = `<tr><td colspan="${COLS.length}" class="empty">${all.length ? "No student matches that." : "No student accounts yet. Use + Add students."}</td></tr>`; return; }
     $("rows").innerHTML = list.map(s => {
       const wk = Date.now() - s.last > 7 * 864e5;
       const row = `<tr data-e="${esc(s.email)}"><td class="nm"><b>${esc(s.name)}</b><small>${esc(s.email)}</small></td>
@@ -284,7 +288,8 @@ td.pt { white-space: normal; min-width: 330px; }
       const np = newPw[s.email];
       return row + `<tr class="det"><td colspan="${COLS.length}"><h4>Recent rounds (newest first)</h4>${recent ? `<ul>${recent}</ul>` : "<p>No rounds yet.</p>"}
         <div class="acts">${np ? `New password: <span class="pw">${esc(np)}</span><button class="btn" type="button" data-slip="${esc(s.email)}">🖨 Print slip</button>`
-          : `<button class="btn" type="button" data-reset="${esc(s.email)}">New password</button><span class="meta">For a student who forgot theirs. Their old password stops working.</span>`}</div></td></tr>`;
+          : `<button class="btn" type="button" data-reset="${esc(s.email)}">New password</button><span class="meta">For a student who forgot theirs. Their old password stops working.</span>`}
+          <button class="btn del" type="button" data-del="${esc(s.email)}" style="margin-left:auto">Delete account</button></div></td></tr>`;
     }).join("");
   }
   function paintSum() {
@@ -358,7 +363,27 @@ td.pt { white-space: normal; min-width: 330px; }
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([["Name,Email,Password", ...made.map(x => [x.name, x.email, x.pw].map(q).join(","))].join("\n")], { type: "text/csv" }));
     a.download = `times-tables-50-passwords-${melDay(Date.now())}.csv`; a.click();
   };
+  // Deleting: the account and all its progress are gone for good
+  async function delOne(em) {
+    const r = await rpc("teacher_delete_student", { student_email: em });
+    if (r !== "deleted" && r !== "no account") throw new Error(r);
+  }
+  $("delAll").onclick = async () => {
+    if (!all.length) { alert("There are no student accounts."); return; }
+    const t = prompt(`This deletes all ${all.length} student accounts and their progress. It can't be undone.\n\nType DELETE to go ahead.`);
+    if (t !== "DELETE") return;
+    $("delAll").disabled = true; let n = 0, bad = [];
+    for (const s of all) { $("when").textContent = `Deleting… ${++n} of ${all.length}`; try { await delOne(s.email); } catch (x) { bad.push(s.email); } }
+    $("delAll").disabled = false; if (bad.length) alert("Couldn't delete: " + bad.join(", "));
+    open = null; loadAll();
+  };
   $("rows").addEventListener("click", async e => {
+    const d = e.target.closest("[data-del]");
+    if (d) { e.stopPropagation(); const s = all.find(x => x.email === d.dataset.del);
+      if (!confirm(`Delete ${s.name} (${s.email}) and all their progress? This can't be undone.`)) return;
+      d.disabled = true;
+      try { await delOne(s.email); open = null; loadAll(); } catch (x) { d.disabled = false; alert("Couldn't delete: " + authMsg(x)); }
+      return; }
     const r = e.target.closest("[data-reset]"), sl = e.target.closest("[data-slip]");
     if (sl) { e.stopPropagation(); const s = all.find(x => x.email === sl.dataset.slip); printSlips([{ email: s.email, name: s.name, pw: newPw[s.email] }]); return; }
     if (!r) return; e.stopPropagation();
