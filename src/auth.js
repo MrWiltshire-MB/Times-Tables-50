@@ -94,7 +94,7 @@
     const say = (t, ok) => { const m = q(".au-msg"); m.textContent = t; m.classList.toggle("ok", !!ok); };
     const busy = async (fn) => { const b = q(".au-go"); b.disabled = true; try { await fn(); } catch (e) { say(authMsg(e)); } b.disabled = false; };
     const checkEmail = v => { v = v.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+$/.test(v)) { say("Type your school email address."); return null; }
-      if (!okDomain(v)) { say("Use your school email (it ends in @schools.vic.edu.au)."); return null; } return v; };
+      return v; }; // which emails may sign up is checked by the database (school emails + the teachers list)
     function stepPassword() {
       const f = box(`<p>${opts.sub}</p>
         <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
