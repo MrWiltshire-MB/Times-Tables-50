@@ -61,7 +61,8 @@ end; $$;
 create trigger progress_stamp before insert or update on public.progress
   for each row execute function public.progress_stamp();
 
--- Teacher page: make a student account with a password (no email is sent)
+-- Teacher page: make a student account with a password (no email is sent).
+-- Staff (@education.vic.gov.au) can be given test accounts the same way.
 create or replace function public.teacher_add_student(student_email text, student_password text) returns text
   language plpgsql security definer set search_path = '' as $$
 declare
@@ -69,7 +70,7 @@ declare
   uid uuid := gen_random_uuid();
 begin
   if not public.is_teacher() then raise exception 'Teachers only'; end if;
-  if e !~ '^[^@[:space:]]+@schools\.vic\.edu\.au$' then return 'not a school email'; end if;
+  if e !~ '^[^@[:space:]]+@(schools\.vic\.edu\.au|education\.vic\.gov\.au)$' then return 'not a school email'; end if;
   if length(student_password) < 8 then return 'password too short'; end if;
   if exists (select 1 from auth.users u where lower(u.email) = e) then return 'exists'; end if;
   insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -90,7 +91,7 @@ create or replace function public.teacher_set_password(student_email text, stude
 declare e text := lower(trim(student_email));
 begin
   if not public.is_teacher() then raise exception 'Teachers only'; end if;
-  if e !~ '^[^@[:space:]]+@schools\.vic\.edu\.au$' then return 'not a school email'; end if;
+  if e !~ '^[^@[:space:]]+@(schools\.vic\.edu\.au|education\.vic\.gov\.au)$' then return 'not a school email'; end if;
   if length(student_password) < 8 then return 'password too short'; end if;
   update auth.users set encrypted_password = extensions.crypt(student_password, extensions.gen_salt('bf')), updated_at = now()
     where lower(email) = e;
@@ -105,7 +106,9 @@ create or replace function public.teacher_list_students()
 begin
   if not public.is_teacher() then raise exception 'Teachers only'; end if;
   return query select lower(u.email)::text, u.created_at, u.last_sign_in_at from auth.users u
-    where lower(u.email) like '%@schools.vic.edu.au' order by 1;
+    where (lower(u.email) like '%@schools.vic.edu.au' or lower(u.email) like '%@education.vic.gov.au')
+      and not exists (select 1 from public.teachers t where lower(t.email) = lower(u.email))
+    order by 1;
 end; $$;
 
 revoke execute on function public.check_email_domain() from public, anon, authenticated;

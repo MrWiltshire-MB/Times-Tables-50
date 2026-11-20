@@ -206,7 +206,7 @@ td.pt { white-space: normal; min-width: 330px; }
     for (let i = 0; i < emails.length; i++) {
       const e = emails[i], name = nameFromEmail(e); $("addMeta").textContent = `Working… ${i + 1} of ${emails.length}`;
       let line;
-      if (!e.endsWith("@schools.vic.edu.au")) line = `<span class="bad">✗ ${esc(e)}: not a school email (must end in @schools.vic.edu.au)</span>`;
+      if (!okDomain(e)) line = `<span class="bad">✗ ${esc(e)}: not a school email (must end in @schools.vic.edu.au, or @education.vic.gov.au for staff testing)</span>`;
       else try {
         const pw = makePw(), r = await rpc("teacher_add_student", { student_email: e, student_password: pw });
         if (r === "created") { made.push({ email: e, name, pw }); line = `<span class="ok">✓ ${esc(name)} (${esc(e)}): <span class="pw">${esc(pw)}</span></span>`; }
