@@ -176,6 +176,8 @@ td.pt { white-space: normal; min-width: 330px; }
       signIn: async (email, password) => keep(fromTok(await post("/auth/v1/token?grant_type=password", { email, password }))),
       signOut: async () => { const s = sess; keep(null); if (s) try { await post("/auth/v1/logout", {}, s.at); } catch (e) {} },
       // the database: /rest/v1/<table>?…
+      // Does this account still exist? (a deleted account's sign-in keeps working for up to an hour otherwise)
+      check: async () => call("/auth/v1/user", { headers: H(await token()) }),
       rest: async (path, opt = {}) => call(path, Object.assign({}, opt, { headers: Object.assign(H(await token()), opt.headers || {}) })),
     };
   }
@@ -205,6 +207,7 @@ td.pt { white-space: normal; min-width: 330px; }
 .au-link { background: none; border: 0; padding: 0; color: var(--accent); font: 700 .92rem var(--body); text-decoration: underline; cursor: pointer; justify-self: start; }
 .au-msg { min-height: 1.2em; font-weight: 700; color: var(--bad); }
 .au-msg.ok { color: var(--good); }
+.au-box .au-note { color: var(--bad); font-weight: 700; background: var(--bad-soft); padding: 8px 10px; border-radius: 10px; }
 .au-small { font-size: .82rem; }`;
 
   // The sign-in box. opts: { title (HTML), sub, onDone(user) }. Returns { show(), hide() }.
@@ -221,7 +224,8 @@ td.pt { white-space: normal; min-width: 330px; }
       return v; };
     // Accounts are made by the teacher (on the teacher page), so there's only one step: email and password.
     function stepPassword() {
-      const f = box(`<p>${opts.sub}</p>
+      let note = ""; try { note = sessionStorage.getItem("tt50-note") || ""; sessionStorage.removeItem("tt50-note"); } catch (e) {}
+      const f = box(`${note ? `<p class="au-note">${esc2(note)}</p>` : ""}<p>${opts.sub}</p>
         <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
         <label>Password<input type="password" name="pw" autocomplete="current-password"></label>
         <button class="au-go" type="submit">Sign in</button>

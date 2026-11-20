@@ -49,6 +49,7 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
       const m = meta(); m.uid = u.id; m.at = rows && rows[0] && rows[0].updated_at; if (readRev() === stamp) m.dirty = false; setMeta(m);
       cstate = "ok";
     } catch (e) {
+      if (isGone(e)) { pushing = false; return goneNow(); }
       cstate = e.status === 401 || !CA.user() ? "signin" : "off";
       if (cstate === "off") { clearTimeout(pushT); pushT = setTimeout(push, 30000); }
     }
@@ -79,22 +80,32 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
   }
   async function start() {
     const w = document.createElement("div"); w.className = "cl-wait"; w.textContent = "Loading your progress…"; document.body.appendChild(w);
-    try { await Promise.race([syncIn(), new Promise((_, no) => setTimeout(() => no(new Error("slow")), 10000))]); cstate = "ok"; }
-    catch (e) { cstate = e.status === 401 || !CA.user() ? "signin" : "off"; if (cstate === "off") queuePush(30000); }
+    try { await Promise.race([CA.check().then(syncIn), new Promise((_, no) => setTimeout(() => no(new Error("slow")), 10000))]); cstate = "ok"; }
+    catch (e) { if (isGone(e)) return goneNow(); cstate = e.status === 401 || !CA.user() ? "signin" : "off"; if (cstate === "off") queuePush(30000); }
     w.remove(); afterSync();
     if (cstate === "signin") gate.show();
+  }
+  // The teacher deleted this account: sign out and clear this device (its progress was deleted too)
+  const isGone = e => !!e && (e.code === "user_not_found" || e.code === "23503" || /does not exist|foreign key/i.test(e.message || ""));
+  async function goneNow() {
+    clearTimeout(pushT); save = () => {}; // nothing more is written (closing a round would otherwise save it again)
+    await CA.signOut();
+    try { [KEY, REV, META].forEach(k => localStorage.removeItem(k)); sessionStorage.setItem("tt50-note", "That account has been deleted. Ask your teacher if you need a new one."); } catch (e) {}
+    location.reload();
   }
   async function signOutNow() {
     if (meta().dirty) { clearTimeout(pushT); await push(); }
     if (meta().dirty && !confirm("Your latest progress hasn't saved online yet (no connection). Sign out anyway and lose it?")) return;
-    await CA.signOut();
+    save = () => {}; await CA.signOut();
     // Leave nothing behind on this device for the next person
     try { [KEY, REV, META].forEach(k => localStorage.removeItem(k)); } catch (e) {}
     location.reload();
   }
   // Coming back to the tab: pick up progress made on another device (only on the home screen, never mid-round)
   document.addEventListener("visibilitychange", async () => {
-    if (document.hidden || !CA.user() || meta().dirty || view !== "homeView") return;
+    if (document.hidden || !CA.user()) return;
+    try { await CA.check(); } catch (e) { if (isGone(e)) return goneNow(); }
+    if (meta().dirty || view !== "homeView") return;
     try { const r = await CA.rest(`/rest/v1/progress?select=updated_at&user_id=eq.${CA.user().id}`);
       if (r && r[0] && r[0].updated_at !== meta().at) { await syncIn(); afterSync(); } } catch (e) {}
   });
