@@ -14,7 +14,8 @@ cloud = open(os.path.join(here, "src/app-cloud.js")).read()
 
 hook = '  show("homeView");\n})();'
 assert app.count(hook) == 1, "hook point not found"
-app = app.replace(hook, '  show("homeView");\n' + auth + cloud + '})();')
+# The online code runs in its own scope so its names (start, push…) can't replace the app's own functions.
+app = app.replace(hook, '  show("homeView");\n  (() => {\n' + auth + cloud + '  })();\n})();')
 head = ('<!doctype html>\n<html lang="en-AU">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n</head>\n<body>\n')
 open(os.path.join(out, "index.html"), "w").write(head + app + "\n</body>\n</html>\n")

@@ -4570,6 +4570,7 @@ td.dim, td .dim { color: var(--muted); }
   renderHome();
   paintTeacherMode();
   show("homeView");
+  (() => {
   /* ---------- online accounts (GitHub version): Supabase sign-in, shared by the app and the teacher page ---------- */
   // The URL and publishable key are meant to be public: what each person can read or change is set by the
   // database's row level security, not by keeping these secret.
@@ -4777,6 +4778,7 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
   const gate = loginUI(CA, { title: "Times Tables <span>50</span>", sub: "Sign in with your school email to save your progress online.",
     onDone: () => { cstate = "ok"; start(); } });
   if (CA.user()) start(); else gate.show();
+  })();
 })();
 </script>
 
