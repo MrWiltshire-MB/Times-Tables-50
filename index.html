@@ -53,6 +53,7 @@ body {
 header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 h1 { font-family: var(--display); font-weight: 800; font-size: 1.7rem; margin: 0; letter-spacing: -0.01em; }
 h1 span { color: var(--accent); }
+#logo { cursor: pointer; user-select: none; }
 h2 { font-family: var(--display); font-weight: 800; font-size: 1.25rem; margin: 0; text-wrap: balance; }
 h3 { font-family: var(--display); font-weight: 800; font-size: 1.1rem; margin: 0; }
 .hdr-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -506,7 +507,7 @@ td.dim, td .dim { color: var(--muted); }
 
 <div class="wrap">
   <header>
-    <h1>Times Tables <span>50</span></h1>
+    <h1 id="logo" title="Home">Times Tables <span>50</span></h1>
     <div class="hdr-right">
       <div class="meta" id="meta"></div>
       <button class="ghost" type="button" id="themeBtn" aria-label="Switch colour theme"></button>
@@ -3526,6 +3527,8 @@ td.dim, td .dim { color: var(--muted); }
   $("again").onclick = () => start(mode);
   $("toHome").onclick = goBack;
   $("home").onclick = () => askLeave(goHome);
+  // The logo goes home too (same as the Home button, including the "leave this round?" check)
+  $("logo").onclick = () => { if (view !== "homeView") $("home").click(); };
 
   /* ---------- progress ---------- */
   let pending = null;
