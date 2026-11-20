@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Times Tables 50 · Teacher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+:root {
+  --paper: #f5f7fb;
+  --grid: #dde4f0;
+  --card: #ffffff;
+  --ink: #18223a;
+  --muted: #5d6a85;
+  --line: #d3dbea;
+  --accent: #2f5bd3;
+  --accent-soft: #e4ebfd;
+  --good: #1f8a52;
+  --good-soft: #dcf3e6;
+  --bad: #c9352b;
+  --bad-soft: #fde4e1;
+  --gold: #a86a00;
+  --gold-soft: #fdf0d5;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #10141f; --grid: #1a2131; --card: #171d2b; --ink: #e8edf8; --muted: #9aa6c0; --line: #2a3349;
+  --accent: #7d9cff; --accent-soft: #232d4a; --good: #4fcf8a; --good-soft: #17321f; --bad: #ff7a6e; --bad-soft: #3a1d1b;
+  --gold: #f2c25a; --gold-soft: #3a2f14; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #10141f; --grid: #1a2131; --card: #171d2b; --ink: #e8edf8; --muted: #9aa6c0; --line: #2a3349;
+  --accent: #7d9cff; --accent-soft: #232d4a; --good: #4fcf8a; --good-soft: #17321f; --bad: #ff7a6e; --bad-soft: #3a1d1b;
+  --gold: #f2c25a; --gold-soft: #3a2f14; color-scheme: dark }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 18px 24px; border-bottom: 2px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font: 800 1.5rem var(--display); }
+header h1 span { color: var(--accent); }
+header .who { margin-left: auto; color: var(--muted); font-size: .9rem; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+button { font-family: var(--body); }
+.btn { font: 700 .92rem var(--body); padding: 8px 14px; border-radius: 10px; border: 2px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.lnk { background: none; border: 0; padding: 0; color: var(--accent); font: 700 .9rem var(--body); text-decoration: underline; cursor: pointer; }
+main { padding: 18px 24px 40px; max-width: 1500px; margin: 0 auto; }
+.tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.tools input { font: 700 1rem var(--body); padding: 8px 12px; border: 2px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); min-width: 240px; }
+.tools .meta { color: var(--muted); font-size: .9rem; }
+.sum { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.sum div { background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 10px 14px; min-width: 130px; }
+.sum b { display: block; font: 800 1.5rem var(--display); }
+.sum span { color: var(--muted); font-size: .85rem; }
+.tw { overflow-x: auto; background: var(--card); border: 2px solid var(--line); border-radius: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; vertical-align: middle; }
+th { font: 800 .75rem var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); position: sticky; top: 0; background: var(--card); cursor: pointer; user-select: none; }
+th.on { color: var(--accent); }
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: var(--accent-soft); }
+td.nm b { display: block; }
+td.nm small { color: var(--muted); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.chip { display: inline-block; min-width: 38px; text-align: center; padding: 2px 5px; margin: 1px; border-radius: 7px; font-size: .78rem; font-weight: 700; border: 1px solid var(--line); color: var(--muted); }
+.chip.g { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+.chip.a { background: var(--gold-soft); color: var(--gold); border-color: var(--gold); }
+.chip.r { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); }
+.chip.n { opacity: .55; }
+.old { color: var(--bad); }
+.det td { background: var(--paper); white-space: normal; cursor: default; }
+.det:hover td { background: var(--paper) !important; }
+.det h4 { margin: 4px 0 6px; font: 800 .95rem var(--display); }
+.det ul { margin: 0; padding-left: 18px; columns: 2 340px; font-size: .86rem; }
+.det li { margin-bottom: 3px; }
+.empty { padding: 30px; text-align: center; color: var(--muted); }
+.note { color: var(--muted); font-size: .85rem; margin-top: 10px; }
+td.pt { white-space: normal; min-width: 330px; }
+.msg { padding: 40px 24px; text-align: center; font-size: 1.05rem; }
+</style>
+</head>
+<body>
+<header hidden id="top"><h1>Times Tables <span>50</span> · Teacher</h1>
+  <div class="who"><span id="who"></span><button class="lnk" type="button" id="out">Sign out</button></div></header>
+<main id="main" hidden>
+  <div class="sum" id="sum"></div>
+  <div class="tools"><input id="find" type="search" placeholder="Find a student…" autocomplete="off">
+    <button class="btn" type="button" id="reload">↻ Refresh</button><button class="btn" type="button" id="csv">Download CSV</button>
+    <span class="meta" id="when"></span></div>
+  <div class="tw"><table><thead><tr id="hd"></tr></thead><tbody id="rows"></tbody></table></div>
+  <p class="note">Parts: % right first time across every round of that part (teacher tick-offs and gift codes not counted). Green 80%+, gold 50–79%, red under 50%. Homework: best score, ✓ = passed (60%). Tap a student for their recent rounds.</p>
+</main>
+<div class="msg" id="msg" hidden></div>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  /* ---------- online accounts (GitHub version): Supabase sign-in, shared by the app and the teacher page ---------- */
+  // The URL and publishable key are meant to be public: what each person can read or change is set by the
+  // database's row level security, not by keeping these secret.
+  const CLOUD = { url: "https://xovilczevfaqwhtuxsnw.supabase.co", key: "sb_publishable_imq2NpyH97FIbbGySbtvUw_b-7TzTzg",
+    domains: ["schools.vic.edu.au", "education.vic.gov.au"] };
+  const okDomain = e => CLOUD.domains.some(d => String(e).toLowerCase().endsWith("@" + d));
+  // first.last2@schools.vic.edu.au → "First Last"
+  const nameFromEmail = e => String(e).split("@")[0].replace(/\d+/g, "").split(/[._-]+/).filter(Boolean)
+    .map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ").slice(0, 30);
+
+  function makeAuth(SK) {
+    let sess = null;
+    try { sess = JSON.parse(localStorage.getItem(SK)); } catch (e) {}
+    const keep = s => { sess = s; try { s ? localStorage.setItem(SK, JSON.stringify(s)) : localStorage.removeItem(SK); } catch (e) {} };
+    const H = tok => Object.assign({ apikey: CLOUD.key, "Content-Type": "application/json" }, tok ? { Authorization: "Bearer " + tok } : {});
+    async function call(path, opt) {
+      let r;
+      try { r = await fetch(CLOUD.url + path, opt); } catch (e) { const x = new Error("offline"); x.code = "offline"; throw x; }
+      const t = await r.text(); let j = null;
+      try { j = t ? JSON.parse(t) : null; } catch (e) { j = { msg: t }; }
+      if (!r.ok) {
+        const x = new Error((j && (j.msg || j.message || j.error_description || j.error)) || "Error " + r.status);
+        x.status = r.status; x.code = j && (j.error_code || j.code); throw x;
+      }
+      return j;
+    }
+    const fromTok = j => ({ at: j.access_token, rt: j.refresh_token, exp: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600),
+      id: j.user.id, email: String(j.user.email || "").toLowerCase() });
+    let refreshing = null;
+    async function token() {
+      if (!sess) { const x = new Error("signed out"); x.status = 401; throw x; }
+      if (sess.exp - 60 > Date.now() / 1000) return sess.at;
+      if (!refreshing) refreshing = call("/auth/v1/token?grant_type=refresh_token", { method: "POST", headers: H(), body: JSON.stringify({ refresh_token: sess.rt }) })
+        .then(j => { keep(fromTok(j)); })
+        .catch(e => { if (e.status === 400 || e.status === 401) keep(null); throw e; })
+        .finally(() => { refreshing = null; });
+      await refreshing;
+      return sess.at;
+    }
+    const post = (path, body, tok) => call(path, { method: "POST", headers: H(tok), body: JSON.stringify(body) });
+    return {
+      user: () => sess && { id: sess.id, email: sess.email },
+      sendCode: email => post("/auth/v1/otp", { email, create_user: true }),
+      verify: async (email, code) => keep(fromTok(await post("/auth/v1/verify", { type: "email", email, token: code }))),
+      signIn: async (email, password) => keep(fromTok(await post("/auth/v1/token?grant_type=password", { email, password }))),
+      setPassword: async password => call("/auth/v1/user", { method: "PUT", headers: H(await token()), body: JSON.stringify({ password }) }),
+      signOut: async () => { const s = sess; keep(null); if (s) try { await post("/auth/v1/logout", {}, s.at); } catch (e) {} },
+      // the database: /rest/v1/<table>?…
+      rest: async (path, opt = {}) => call(path, Object.assign({}, opt, { headers: Object.assign(H(await token()), opt.headers || {}) })),
+    };
+  }
+
+  // Friendly words for what went wrong
+  function authMsg(e) {
+    const m = String(e && e.message || ""), c = e && e.code;
+    if (c === "offline") return "Can't reach the server. Check the internet connection and try again.";
+    if (c === "invalid_credentials" || /invalid login/i.test(m)) return "That email and password don't match. First time here, or forgot it? Get a code instead.";
+    if (c === "otp_expired" || /expired|invalid/i.test(m) && /token|otp|code/i.test(m)) return "That code is wrong or has expired. Check it, or get a new code.";
+    if (c === "over_email_send_rate_limit" || e && e.status === 429) return "Too many codes have been sent. Wait a minute, then try again.";
+    if (/database error saving new user/i.test(m) || c === "unexpected_failure") return "Only school email addresses can sign in.";
+    if (c === "weak_password" || /password/i.test(m) && /least|weak|short/i.test(m)) return "Choose a longer password: at least 8 characters.";
+    if (c === "same_password") return "That's already your password. You're all set.";
+    if (/signups? not allowed/i.test(m)) return "This email doesn't have an account yet. Ask your teacher.";
+    return "Something went wrong: " + m;
+  }
+
+  const AUTH_CSS = `
+.au-wrap { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px; background: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 28px 28px; overflow: auto; }
+.au-box { width: min(420px, 100%); background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 24px; display: grid; gap: 12px; color: var(--ink);
+  font-family: var(--body); box-shadow: 0 10px 30px rgba(20, 30, 60, .08); }
+.au-box h2 { margin: 0; font: 800 1.6rem var(--display); }
+.au-box h2 span { color: var(--accent); }
+.au-box p { margin: 0; color: var(--muted); line-height: 1.45; }
+.au-box label { display: grid; gap: 4px; font-weight: 700; font-size: .9rem; }
+.au-box input { font: 700 1.05rem var(--body); padding: 10px 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); width: 100%; }
+.au-box input:focus { outline: none; border-color: var(--accent); }
+.au-box .au-code { letter-spacing: .3em; text-align: center; font-size: 1.4rem; }
+.au-go { font: 800 1.05rem var(--display); padding: 12px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; }
+.au-go:disabled { opacity: .6; cursor: wait; }
+.au-link { background: none; border: 0; padding: 0; color: var(--accent); font: 700 .92rem var(--body); text-decoration: underline; cursor: pointer; justify-self: start; }
+.au-msg { min-height: 1.2em; font-weight: 700; color: var(--bad); }
+.au-msg.ok { color: var(--good); }
+.au-small { font-size: .82rem; }`;
+
+  // The sign-in box. opts: { title (HTML), sub, onDone(user) }. Returns { show(), hide() }.
+  function loginUI(auth, opts) {
+    if (!document.getElementById("auCss")) { const st = document.createElement("style"); st.id = "auCss"; st.textContent = AUTH_CSS; document.head.appendChild(st); }
+    const wrap = document.createElement("div"); wrap.className = "au-wrap"; wrap.hidden = true; document.body.appendChild(wrap);
+    let email = "";
+    const esc2 = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const box = inner => { wrap.innerHTML = `<form class="au-box" novalidate><h2>${opts.title}</h2>${inner}<p class="au-msg" role="status"></p></form>`; return wrap.firstChild; };
+    const q = s => wrap.querySelector(s);
+    const say = (t, ok) => { const m = q(".au-msg"); m.textContent = t; m.classList.toggle("ok", !!ok); };
+    const busy = async (fn) => { const b = q(".au-go"); b.disabled = true; try { await fn(); } catch (e) { say(authMsg(e)); } b.disabled = false; };
+    const checkEmail = v => { v = v.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+$/.test(v)) { say("Type your school email address."); return null; }
+      if (!okDomain(v)) { say("Use your school email (it ends in @schools.vic.edu.au)."); return null; } return v; };
+    function stepPassword() {
+      const f = box(`<p>${opts.sub}</p>
+        <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
+        <label>Password<input type="password" name="pw" autocomplete="current-password"></label>
+        <button class="au-go" type="submit">Sign in</button>
+        <button class="au-link" type="button" data-code>First time here, or forgot your password? Get a code</button>`);
+      q(email ? "[name=pw]" : "[name=em]").focus();
+      q("[data-code]").onclick = () => { email = q("[name=em]").value.trim(); stepEmail(); };
+      f.onsubmit = e => { e.preventDefault(); const v = checkEmail(q("[name=em]").value); if (!v) return; email = v;
+        const pw = q("[name=pw]").value; if (!pw) { say("Type your password."); return; }
+        busy(async () => { await auth.signIn(v, pw); done(); }); };
+    }
+    function stepEmail() {
+      const f = box(`<p>We'll email a code to your school email. Open Outlook to find it.</p>
+        <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
+        <button class="au-go" type="submit">Email me a code</button>
+        <button class="au-link" type="button" data-back>I have a password: sign in</button>`);
+      q("[name=em]").focus();
+      q("[data-back]").onclick = () => { email = q("[name=em]").value.trim(); stepPassword(); };
+      f.onsubmit = e => { e.preventDefault(); const v = checkEmail(q("[name=em]").value); if (!v) return; email = v;
+        busy(async () => { await auth.sendCode(v); stepCode(); }); };
+    }
+    function stepCode() {
+      const f = box(`<p>We sent a code to <b>${esc2(email)}</b>. It can take a minute to arrive. Check Junk too.</p>
+        <label>Code<input class="au-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></label>
+        <button class="au-go" type="submit">Check code</button>
+        <button class="au-link" type="button" data-again>Send a new code</button>
+        <button class="au-link" type="button" data-back>Use a different email</button>`);
+      q("[name=code]").focus();
+      q("[data-back]").onclick = stepEmail;
+      q("[data-again]").onclick = () => busy(async () => { await auth.sendCode(email); say("New code sent.", true); });
+      f.onsubmit = e => { e.preventDefault(); const c = q("[name=code]").value.replace(/\D/g, "");
+        if (c.length < 6) { say("Type the code from the email."); return; }
+        busy(async () => { await auth.verify(email, c); stepNewPassword(); }); };
+    }
+    function stepNewPassword() {
+      const f = box(`<p>Choose a password so you can sign in without a code next time.</p>
+        <input type="email" name="em" autocomplete="username" value="${esc2(email)}" hidden>
+        <label>New password (8 or more characters)<input type="password" name="pw" autocomplete="new-password"></label>
+        <label>Type it again<input type="password" name="pw2" autocomplete="new-password"></label>
+        <button class="au-go" type="submit">Save password</button>`);
+      q("[name=pw]").focus();
+      f.onsubmit = e => { e.preventDefault(); const a = q("[name=pw]").value, b = q("[name=pw2]").value;
+        if (a.length < 8) { say("Use at least 8 characters."); return; }
+        if (a !== b) { say("The two passwords don't match."); return; }
+        busy(async () => { try { await auth.setPassword(a); } catch (x) { if (x.code !== "same_password") throw x; } done(); }); };
+    }
+    function done() { wrap.hidden = true; wrap.innerHTML = ""; opts.onDone(auth.user()); }
+    return { show() { wrap.hidden = false; stepPassword(); }, hide() { wrap.hidden = true; } };
+  }
+
+  const PARTS = ["10A", "10B", "10C", "10D", "10E", "10F", "10G", "10H", "10I", "10J", "10K", "10L"], HOMEWORK = [
+    { id: "hw1", week: 6, parts: ["10A", "10B"], due: Date.parse("2026-11-10T22:00:00Z") },
+    { id: "hw2", week: 7, parts: ["10C", "10D", "10E"], due: Date.parse("2026-11-17T22:00:00Z") },
+    { id: "hw3", week: 8, parts: ["10F", "10G", "10H"], due: Date.parse("2026-11-24T22:00:00Z") },
+    { id: "hw4", week: 9, parts: ["10I", "10J", "10K"], due: Date.parse("2026-12-01T22:00:00Z") }], HW_PASS = 0.6;
+  const CA = makeAuth("tt50-teacher-session");
+  const melDay = ts => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(ts);
+  const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " days ago"; };
+  const pct = (r, n) => n ? Math.round(r / n * 100) : null;
+  const MODE = { measurement: "Measurement", equations: "Equations", homework: "Homework", tricky: "Tricky ones", mixed: "Number facts mix" };
+
+  // One student's numbers, from their saved progress
+  function summary(row) {
+    const d = row.data || {}, p = (d.profiles || {})[d.current] || Object.values(d.profiles || {})[0] || {}, H = (p.history || []).filter(h => !h.gift);
+    const parts = {}; let done = 0, right = 0;
+    H.forEach(h => Object.entries(h.parts || {}).forEach(([id, [r, n]]) => { if (!/^m10/.test(id)) return; const x = parts[id] || (parts[id] = [0, 0]); x[0] += r; x[1] += n; done += n; right += r; }));
+    const tt = p.ttot && p.ttot.ch10; if (tt && tt.tried > done) { done = tt.tried; right = tt.right; }
+    const today = p.today && p.today.d === melDay(Date.now()) ? p.today : { tried: 0, right: 0 };
+    const hw = HOMEWORK.map(w => { const b = H.filter(h => h.m === "homework" && h.hw === w.id).reduce((a, h) => !a || h.s / h.n > a.s / a.n ? h : a, null);
+      return { w, best: b, pass: !!b && b.n >= 20 && b.s / b.n >= (b.d < Date.parse("2026-11-05T04:05:00Z") ? 0.5 : HW_PASS) }; });
+    const last = Math.max(Date.parse(row.updated_at) || 0, ...H.map(h => h.d || 0));
+    return { name: p.name && !/^student$/i.test(p.name) ? p.name : row.name || nameFromEmail(row.email), email: row.email, p, H, parts, done, right, today, hw, last,
+      points: p.points || 0, rounds: H.length };
+  }
+  const cls = v => v == null ? "n" : v >= 80 ? "g" : v >= 50 ? "a" : "r";
+  const COLS = [
+    { k: "name", t: "Student", v: s => s.name.toLowerCase() },
+    { k: "last", t: "Last active", v: s => -s.last },
+    { k: "points", t: "Points", v: s => -s.points },
+    { k: "done", t: "Measurement", v: s => -s.done },
+    { k: "today", t: "Today", v: s => -s.today.tried },
+    { k: "hw", t: "Homework", v: s => -s.hw.filter(x => x.pass).length },
+    { k: "parts", t: "Parts (10A–10L)", v: s => -(Object.values(s.parts).filter(([r, n]) => n && r / n >= .8).length) },
+  ];
+  let all = [], sortK = "name", open = null;
+  function paint() {
+    const f = $("find").value.trim().toLowerCase(), col = COLS.find(c => c.k === sortK);
+    const list = all.filter(s => !f || s.name.toLowerCase().includes(f) || s.email.includes(f)).sort((a, b) => { const x = col.v(a), y = col.v(b); return x < y ? -1 : x > y ? 1 : 0; });
+    $("hd").innerHTML = COLS.map(c => `<th data-k="${c.k}" class="${c.k === sortK ? "on" : ""}">${c.t}</th>`).join("");
+    if (!list.length) { $("rows").innerHTML = `<tr><td colspan="${COLS.length}" class="empty">${all.length ? "No student matches that." : "No students have signed in yet."}</td></tr>`; return; }
+    $("rows").innerHTML = list.map(s => {
+      const wk = Date.now() - s.last > 7 * 864e5;
+      const row = `<tr data-e="${esc(s.email)}"><td class="nm"><b>${esc(s.name)}</b><small>${esc(s.email)}</small></td>
+        <td class="${wk ? "old" : ""}">${s.last ? ago(s.last) : "–"}</td><td class="num">${s.points.toLocaleString("en-AU")}</td>
+        <td class="num">${s.done} done · ${s.done ? pct(s.right, s.done) + "%" : "–"}</td><td class="num">${s.today.tried ? `${s.today.right}/${s.today.tried}` : "–"}</td>
+        <td>${s.hw.map(x => `<span class="chip ${x.pass ? "g" : x.best ? "r" : Date.now() > x.w.due ? "r" : "n"}" title="Week ${x.w.week}">W${x.w.week} ${x.best ? (x.pass ? "✓ " : "") + x.best.s + "/" + x.best.n : Date.now() > x.w.due ? "✗" : "–"}</span>`).join("")}</td>
+        <td class="pt">${PARTS.map(id => { const x = s.parts["m" + id], v = x ? pct(x[0], x[1]) : null; return `<span class="chip ${cls(v)}" title="${id}: ${x ? x[0] + "/" + x[1] : "not tried"}">${id} ${v == null ? "" : v + "%"}</span>`; }).join("")}</td></tr>`;
+      if (open !== s.email) return row;
+      const recent = s.H.slice(-20).reverse().map(h => `<li>${new Date(h.d).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} · <b>${esc(MODE[h.m] || h.m)}${h.hw ? " " + esc(h.hw) : ""}</b> · ${h.s}/${h.n}${h.parts ? " · " + Object.keys(h.parts).map(k => k.replace(/^m/, "")).join(", ") : ""}</li>`).join("");
+      return row + `<tr class="det"><td colspan="${COLS.length}"><h4>Recent rounds (newest first)</h4>${recent ? `<ul>${recent}</ul>` : "<p>No rounds yet.</p>"}</td></tr>`;
+    }).join("");
+  }
+  function paintSum() {
+    const day = melDay(Date.now()), act = all.filter(s => s.today.tried), wk = all.filter(s => Date.now() - s.last < 7 * 864e5);
+    const cur = HOMEWORK.find(h => Date.now() < h.due);
+    $("sum").innerHTML = `<div><b>${all.length}</b><span>students signed in</span></div><div><b>${act.length}</b><span>practised today</span></div>
+      <div><b>${wk.length}</b><span>active this week</span></div>
+      ${cur ? `<div><b>${all.filter(s => s.hw.find(x => x.w === cur && x.pass)).length}/${all.length}</b><span>done Week ${cur.week} homework</span></div>` : ""}
+      <div><b>${act.reduce((a, s) => a + s.today.tried, 0)}</b><span>questions today</span></div>`;
+  }
+  async function loadAll() {
+    $("when").textContent = "Loading…";
+    try {
+      const rows = await CA.rest("/rest/v1/progress?select=email,name,updated_at,data&order=updated_at.desc");
+      all = rows.filter(r => r.email !== (CA.user() || {}).email).map(summary);
+      paintSum(); paint(); $("when").textContent = "Updated " + new Date().toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
+    } catch (e) { if (e.status === 401) { gate.show(); return; } $("when").textContent = authMsg(e); }
+  }
+  async function begin() {
+    const u = CA.user(); $("msg").hidden = true;
+    try {
+      const t = await CA.rest("/rest/v1/teachers?select=email");
+      if (!t || !t.length) { $("msg").hidden = false; $("msg").innerHTML = `<b>${esc(u.email)}</b> isn't set up as a teacher. <button class="lnk" type="button" id="out2">Sign out</button>`;
+        $("out2").onclick = out; return; }
+    } catch (e) { if (e.status === 401) { gate.show(); return; } $("msg").hidden = false; $("msg").textContent = authMsg(e); return; }
+    $("top").hidden = $("main").hidden = false; $("who").textContent = u.email; loadAll();
+  }
+  async function out() { await CA.signOut(); location.reload(); }
+  $("out").onclick = out;
+  $("reload").onclick = loadAll;
+  $("find").oninput = paint;
+  $("hd").onclick = e => { const th = e.target.closest("th"); if (th) { sortK = th.dataset.k; paint(); } };
+  $("rows").onclick = e => { const tr = e.target.closest("tr[data-e]"); if (tr) { open = open === tr.dataset.e ? null : tr.dataset.e; paint(); } };
+  $("csv").onclick = () => {
+    const q = v => `"${String(v).replace(/"/g, '""')}"`;
+    const head = ["Name", "Email", "Last active", "Points", "Measurement done", "Measurement % right", "Today done", "Today right",
+      ...HOMEWORK.map(w => "Week " + w.week + " homework"), ...PARTS.map(id => id + " %")];
+    const lines = all.map(s => [s.name, s.email, s.last ? new Date(s.last).toISOString() : "", s.points, s.done, s.done ? pct(s.right, s.done) : "", s.today.tried, s.today.right,
+      ...s.hw.map(x => x.best ? `${x.best.s}/${x.best.n}${x.pass ? " pass" : ""}` : ""), ...PARTS.map(id => { const x = s.parts["m" + id]; return x ? pct(x[0], x[1]) : ""; })].map(q).join(","));
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([[head.map(q).join(","), ...lines].join("\n")], { type: "text/csv" }));
+    a.download = `times-tables-50-${melDay(Date.now())}.csv`; a.click();
+  };
+  const gate = loginUI(CA, { title: "Times Tables <span>50</span> · Teacher", sub: "Sign in with your school email.", onDone: begin });
+  if (CA.user()) begin(); else gate.show();
+})();
+</script>
+</body>
+</html>

@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0}</style>
 </head>
 <body>
 
@@ -4571,6 +4570,257 @@ td.dim, td .dim { color: var(--muted); }
   renderHome();
   paintTeacherMode();
   show("homeView");
+  /* ---------- online accounts (GitHub version): Supabase sign-in, shared by the app and the teacher page ---------- */
+  // The URL and publishable key are meant to be public: what each person can read or change is set by the
+  // database's row level security, not by keeping these secret.
+  const CLOUD = { url: "https://xovilczevfaqwhtuxsnw.supabase.co", key: "sb_publishable_imq2NpyH97FIbbGySbtvUw_b-7TzTzg",
+    domains: ["schools.vic.edu.au", "education.vic.gov.au"] };
+  const okDomain = e => CLOUD.domains.some(d => String(e).toLowerCase().endsWith("@" + d));
+  // first.last2@schools.vic.edu.au → "First Last"
+  const nameFromEmail = e => String(e).split("@")[0].replace(/\d+/g, "").split(/[._-]+/).filter(Boolean)
+    .map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ").slice(0, 30);
+
+  function makeAuth(SK) {
+    let sess = null;
+    try { sess = JSON.parse(localStorage.getItem(SK)); } catch (e) {}
+    const keep = s => { sess = s; try { s ? localStorage.setItem(SK, JSON.stringify(s)) : localStorage.removeItem(SK); } catch (e) {} };
+    const H = tok => Object.assign({ apikey: CLOUD.key, "Content-Type": "application/json" }, tok ? { Authorization: "Bearer " + tok } : {});
+    async function call(path, opt) {
+      let r;
+      try { r = await fetch(CLOUD.url + path, opt); } catch (e) { const x = new Error("offline"); x.code = "offline"; throw x; }
+      const t = await r.text(); let j = null;
+      try { j = t ? JSON.parse(t) : null; } catch (e) { j = { msg: t }; }
+      if (!r.ok) {
+        const x = new Error((j && (j.msg || j.message || j.error_description || j.error)) || "Error " + r.status);
+        x.status = r.status; x.code = j && (j.error_code || j.code); throw x;
+      }
+      return j;
+    }
+    const fromTok = j => ({ at: j.access_token, rt: j.refresh_token, exp: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600),
+      id: j.user.id, email: String(j.user.email || "").toLowerCase() });
+    let refreshing = null;
+    async function token() {
+      if (!sess) { const x = new Error("signed out"); x.status = 401; throw x; }
+      if (sess.exp - 60 > Date.now() / 1000) return sess.at;
+      if (!refreshing) refreshing = call("/auth/v1/token?grant_type=refresh_token", { method: "POST", headers: H(), body: JSON.stringify({ refresh_token: sess.rt }) })
+        .then(j => { keep(fromTok(j)); })
+        .catch(e => { if (e.status === 400 || e.status === 401) keep(null); throw e; })
+        .finally(() => { refreshing = null; });
+      await refreshing;
+      return sess.at;
+    }
+    const post = (path, body, tok) => call(path, { method: "POST", headers: H(tok), body: JSON.stringify(body) });
+    return {
+      user: () => sess && { id: sess.id, email: sess.email },
+      sendCode: email => post("/auth/v1/otp", { email, create_user: true }),
+      verify: async (email, code) => keep(fromTok(await post("/auth/v1/verify", { type: "email", email, token: code }))),
+      signIn: async (email, password) => keep(fromTok(await post("/auth/v1/token?grant_type=password", { email, password }))),
+      setPassword: async password => call("/auth/v1/user", { method: "PUT", headers: H(await token()), body: JSON.stringify({ password }) }),
+      signOut: async () => { const s = sess; keep(null); if (s) try { await post("/auth/v1/logout", {}, s.at); } catch (e) {} },
+      // the database: /rest/v1/<table>?…
+      rest: async (path, opt = {}) => call(path, Object.assign({}, opt, { headers: Object.assign(H(await token()), opt.headers || {}) })),
+    };
+  }
+
+  // Friendly words for what went wrong
+  function authMsg(e) {
+    const m = String(e && e.message || ""), c = e && e.code;
+    if (c === "offline") return "Can't reach the server. Check the internet connection and try again.";
+    if (c === "invalid_credentials" || /invalid login/i.test(m)) return "That email and password don't match. First time here, or forgot it? Get a code instead.";
+    if (c === "otp_expired" || /expired|invalid/i.test(m) && /token|otp|code/i.test(m)) return "That code is wrong or has expired. Check it, or get a new code.";
+    if (c === "over_email_send_rate_limit" || e && e.status === 429) return "Too many codes have been sent. Wait a minute, then try again.";
+    if (/database error saving new user/i.test(m) || c === "unexpected_failure") return "Only school email addresses can sign in.";
+    if (c === "weak_password" || /password/i.test(m) && /least|weak|short/i.test(m)) return "Choose a longer password: at least 8 characters.";
+    if (c === "same_password") return "That's already your password. You're all set.";
+    if (/signups? not allowed/i.test(m)) return "This email doesn't have an account yet. Ask your teacher.";
+    return "Something went wrong: " + m;
+  }
+
+  const AUTH_CSS = `
+.au-wrap { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px; background: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 28px 28px; overflow: auto; }
+.au-box { width: min(420px, 100%); background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 24px; display: grid; gap: 12px; color: var(--ink);
+  font-family: var(--body); box-shadow: 0 10px 30px rgba(20, 30, 60, .08); }
+.au-box h2 { margin: 0; font: 800 1.6rem var(--display); }
+.au-box h2 span { color: var(--accent); }
+.au-box p { margin: 0; color: var(--muted); line-height: 1.45; }
+.au-box label { display: grid; gap: 4px; font-weight: 700; font-size: .9rem; }
+.au-box input { font: 700 1.05rem var(--body); padding: 10px 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); width: 100%; }
+.au-box input:focus { outline: none; border-color: var(--accent); }
+.au-box .au-code { letter-spacing: .3em; text-align: center; font-size: 1.4rem; }
+.au-go { font: 800 1.05rem var(--display); padding: 12px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; }
+.au-go:disabled { opacity: .6; cursor: wait; }
+.au-link { background: none; border: 0; padding: 0; color: var(--accent); font: 700 .92rem var(--body); text-decoration: underline; cursor: pointer; justify-self: start; }
+.au-msg { min-height: 1.2em; font-weight: 700; color: var(--bad); }
+.au-msg.ok { color: var(--good); }
+.au-small { font-size: .82rem; }`;
+
+  // The sign-in box. opts: { title (HTML), sub, onDone(user) }. Returns { show(), hide() }.
+  function loginUI(auth, opts) {
+    if (!document.getElementById("auCss")) { const st = document.createElement("style"); st.id = "auCss"; st.textContent = AUTH_CSS; document.head.appendChild(st); }
+    const wrap = document.createElement("div"); wrap.className = "au-wrap"; wrap.hidden = true; document.body.appendChild(wrap);
+    let email = "";
+    const esc2 = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const box = inner => { wrap.innerHTML = `<form class="au-box" novalidate><h2>${opts.title}</h2>${inner}<p class="au-msg" role="status"></p></form>`; return wrap.firstChild; };
+    const q = s => wrap.querySelector(s);
+    const say = (t, ok) => { const m = q(".au-msg"); m.textContent = t; m.classList.toggle("ok", !!ok); };
+    const busy = async (fn) => { const b = q(".au-go"); b.disabled = true; try { await fn(); } catch (e) { say(authMsg(e)); } b.disabled = false; };
+    const checkEmail = v => { v = v.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+$/.test(v)) { say("Type your school email address."); return null; }
+      if (!okDomain(v)) { say("Use your school email (it ends in @schools.vic.edu.au)."); return null; } return v; };
+    function stepPassword() {
+      const f = box(`<p>${opts.sub}</p>
+        <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
+        <label>Password<input type="password" name="pw" autocomplete="current-password"></label>
+        <button class="au-go" type="submit">Sign in</button>
+        <button class="au-link" type="button" data-code>First time here, or forgot your password? Get a code</button>`);
+      q(email ? "[name=pw]" : "[name=em]").focus();
+      q("[data-code]").onclick = () => { email = q("[name=em]").value.trim(); stepEmail(); };
+      f.onsubmit = e => { e.preventDefault(); const v = checkEmail(q("[name=em]").value); if (!v) return; email = v;
+        const pw = q("[name=pw]").value; if (!pw) { say("Type your password."); return; }
+        busy(async () => { await auth.signIn(v, pw); done(); }); };
+    }
+    function stepEmail() {
+      const f = box(`<p>We'll email a code to your school email. Open Outlook to find it.</p>
+        <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
+        <button class="au-go" type="submit">Email me a code</button>
+        <button class="au-link" type="button" data-back>I have a password: sign in</button>`);
+      q("[name=em]").focus();
+      q("[data-back]").onclick = () => { email = q("[name=em]").value.trim(); stepPassword(); };
+      f.onsubmit = e => { e.preventDefault(); const v = checkEmail(q("[name=em]").value); if (!v) return; email = v;
+        busy(async () => { await auth.sendCode(v); stepCode(); }); };
+    }
+    function stepCode() {
+      const f = box(`<p>We sent a code to <b>${esc2(email)}</b>. It can take a minute to arrive. Check Junk too.</p>
+        <label>Code<input class="au-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></label>
+        <button class="au-go" type="submit">Check code</button>
+        <button class="au-link" type="button" data-again>Send a new code</button>
+        <button class="au-link" type="button" data-back>Use a different email</button>`);
+      q("[name=code]").focus();
+      q("[data-back]").onclick = stepEmail;
+      q("[data-again]").onclick = () => busy(async () => { await auth.sendCode(email); say("New code sent.", true); });
+      f.onsubmit = e => { e.preventDefault(); const c = q("[name=code]").value.replace(/\D/g, "");
+        if (c.length < 6) { say("Type the code from the email."); return; }
+        busy(async () => { await auth.verify(email, c); stepNewPassword(); }); };
+    }
+    function stepNewPassword() {
+      const f = box(`<p>Choose a password so you can sign in without a code next time.</p>
+        <input type="email" name="em" autocomplete="username" value="${esc2(email)}" hidden>
+        <label>New password (8 or more characters)<input type="password" name="pw" autocomplete="new-password"></label>
+        <label>Type it again<input type="password" name="pw2" autocomplete="new-password"></label>
+        <button class="au-go" type="submit">Save password</button>`);
+      q("[name=pw]").focus();
+      f.onsubmit = e => { e.preventDefault(); const a = q("[name=pw]").value, b = q("[name=pw2]").value;
+        if (a.length < 8) { say("Use at least 8 characters."); return; }
+        if (a !== b) { say("The two passwords don't match."); return; }
+        busy(async () => { try { await auth.setPassword(a); } catch (x) { if (x.code !== "same_password") throw x; } done(); }); };
+    }
+    function done() { wrap.hidden = true; wrap.innerHTML = ""; opts.onDone(auth.user()); }
+    return { show() { wrap.hidden = false; stepPassword(); }, hide() { wrap.hidden = true; } };
+  }
+  // Each student's progress is kept online in their own row (only they, and teachers, can read it) as well as in this browser.
+  // This browser's copy is used straight away; the online copy is updated a couple of seconds after every save.
+  const CA = makeAuth("tt50-cloud-session"), META = "tt50-cloud";
+  const meta = () => { try { return JSON.parse(localStorage.getItem(META)) || {}; } catch (e) { return {}; } };
+  const setMeta = m => { try { localStorage.setItem(META, JSON.stringify(m)); } catch (e) {} };
+  const histLen = s => Object.values((s && s.profiles) || {}).reduce((a, p) => a + ((p && p.history) || []).length, 0);
+  const rerender = () => { try { if (typeof renderSections === "function") renderSections(); if (view === "homeView") renderHome(); else paintName(); } catch (e) {} };
+  // Put the online copy on this device
+  function useData(d) {
+    try { localStorage.setItem(KEY, JSON.stringify(d)); localStorage.setItem(REV, String(readRev() + 1)); } catch (e) {}
+    store = load(); myRev = readRev();
+    if (!histLen(store) && histLen(d)) store = Object.assign(load(), d); // this browser can't save: use it from memory
+  }
+  // Status line (bottom left)
+  const bar = document.createElement("div"); bar.className = "cl-bar"; bar.hidden = true; document.body.appendChild(bar);
+  const st = document.createElement("style");
+  st.textContent = `.cl-bar { position: fixed; z-index: 30; left: 10px; bottom: 8px; font: .8rem var(--body); color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: calc(100vw - 220px); }
+.cl-bar b { color: var(--ink); } .cl-bar .ok { color: var(--good); } .cl-bar .warn { color: var(--bad); }
+.cl-bar button { background: none; border: 0; padding: 0; font: 700 .8rem var(--body); color: var(--accent); text-decoration: underline; cursor: pointer; }
+body:has(#quiz:not([hidden])) .cl-bar { display: none; }
+@media (max-width: 700px) { .cl-bar { position: static; justify-content: center; max-width: none; padding: 8px 0 40px; } }
+.cl-wait { position: fixed; inset: 0; z-index: 190; display: grid; place-items: center; background: var(--paper); font: 800 1.2rem var(--display); color: var(--ink); }`;
+  document.head.appendChild(st);
+  let cstate = "ok";
+  function paintBar() {
+    const u = CA.user(); bar.hidden = !u; if (!u) return;
+    const m = meta(), s = cstate === "signin" ? `<span class="warn">Signed out. Sign in again to save online.</span>`
+      : cstate === "off" ? `<span class="warn">Not saved online yet (no connection). It will keep trying.</span>`
+      : m.dirty ? `<span>Saving online…</span>` : `<span class="ok">✓ Saved online</span>`;
+    bar.innerHTML = `${s}<span>·</span><span>${esc(u.email)}</span><button type="button" data-cl="${cstate === "signin" ? "in" : "out"}">${cstate === "signin" ? "Sign in" : "Sign out"}</button>`;
+  }
+  bar.addEventListener("click", e => { const b = e.target.closest("[data-cl]"); if (!b) return; if (b.dataset.cl === "in") gate.show(); else signOutNow(); });
+
+  let pushT = null, pushing = false;
+  function queuePush(ms = 2000) {
+    const u = CA.user(); if (!u) return;
+    const m = meta(); if (m.uid && m.uid !== u.id) return; // not this person's progress (shouldn't happen)
+    m.uid = u.id; m.dirty = true; setMeta(m); paintBar();
+    clearTimeout(pushT); pushT = setTimeout(push, ms);
+  }
+  async function push() {
+    const u = CA.user(); if (!u) return;
+    if (pushing) { clearTimeout(pushT); pushT = setTimeout(push, 1500); return; }
+    pushing = true; const stamp = readRev();
+    try {
+      const rows = await CA.rest("/rest/v1/progress?on_conflict=user_id&select=updated_at", { method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify({ user_id: u.id, name: P().name, data: store }) });
+      const m = meta(); m.uid = u.id; m.at = rows && rows[0] && rows[0].updated_at; if (readRev() === stamp) m.dirty = false; setMeta(m);
+      cstate = "ok";
+    } catch (e) {
+      cstate = e.status === 401 || !CA.user() ? "signin" : "off";
+      if (cstate === "off") { clearTimeout(pushT); pushT = setTimeout(push, 30000); }
+    }
+    pushing = false; paintBar();
+  }
+  // Every save on this device also goes online
+  const saveLocal = save;
+  save = function () { saveLocal(); queuePush(); };
+
+  // After signing in (or opening the app signed in): bring this device and the online copy together
+  async function syncIn() {
+    const u = CA.user(), m = meta();
+    const rows = await CA.rest(`/rest/v1/progress?select=data,updated_at&user_id=eq.${u.id}`), row = rows && rows[0];
+    if (m.uid && m.uid !== u.id) { // this device last had someone else's progress (they signed out)
+      useData(row ? row.data : { profiles: {}, current: null, settings: {} }); setMeta({ uid: u.id, at: row && row.updated_at });
+      if (!row) await push(); return;
+    }
+    if (!row) { setMeta({ uid: u.id, dirty: true }); await push(); return; } // first sign-in: this device's progress goes online
+    const keepLocal = histLen(store) > histLen(row.data);
+    if (!m.uid) { if (keepLocal) { setMeta({ uid: u.id, dirty: true }); await push(); } else { useData(row.data); setMeta({ uid: u.id, at: row.updated_at }); } return; }
+    if (row.updated_at !== m.at) { // changed on another device
+      if (m.dirty && keepLocal) await push(); else { useData(row.data); setMeta({ uid: u.id, at: row.updated_at }); }
+    } else if (m.dirty) await push();
+  }
+  function afterSync() {
+    rerender(); paintBar();
+    const n = $("ngName"); if (n && !n.value && CA.user()) n.value = nameFromEmail(CA.user().email);
+  }
+  async function start() {
+    const w = document.createElement("div"); w.className = "cl-wait"; w.textContent = "Loading your progress…"; document.body.appendChild(w);
+    try { await Promise.race([syncIn(), new Promise((_, no) => setTimeout(() => no(new Error("slow")), 10000))]); cstate = "ok"; }
+    catch (e) { cstate = e.status === 401 || !CA.user() ? "signin" : "off"; if (cstate === "off") queuePush(30000); }
+    w.remove(); afterSync();
+    if (cstate === "signin") gate.show();
+  }
+  async function signOutNow() {
+    if (meta().dirty) { clearTimeout(pushT); await push(); }
+    if (meta().dirty && !confirm("Your latest progress hasn't saved online yet (no connection). Sign out anyway and lose it?")) return;
+    await CA.signOut();
+    // Leave nothing behind on this device for the next person
+    try { [KEY, REV, META].forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    location.reload();
+  }
+  // Coming back to the tab: pick up progress made on another device (only on the home screen, never mid-round)
+  document.addEventListener("visibilitychange", async () => {
+    if (document.hidden || !CA.user() || meta().dirty || view !== "homeView") return;
+    try { const r = await CA.rest(`/rest/v1/progress?select=updated_at&user_id=eq.${CA.user().id}`);
+      if (r && r[0] && r[0].updated_at !== meta().at) { await syncIn(); afterSync(); } } catch (e) {}
+  });
+
+  const gate = loginUI(CA, { title: "Times Tables <span>50</span>", sub: "Sign in with your school email to save your progress online.",
+    onDone: () => { cstate = "ok"; start(); } });
+  if (CA.user()) start(); else gate.show();
 })();
 </script>
 
