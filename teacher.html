@@ -78,6 +78,26 @@ td.nm small { color: var(--muted); }
 .note { color: var(--muted); font-size: .85rem; margin-top: 10px; }
 td.pt { white-space: normal; min-width: 330px; }
 .msg { padding: 40px 24px; text-align: center; font-size: 1.05rem; }
+.btn.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+.add { background: var(--card); border: 2px solid var(--accent); border-radius: 14px; padding: 16px; margin-bottom: 14px; display: grid; gap: 10px; }
+.add h3 { margin: 0; font: 800 1.1rem var(--display); }
+.add p { margin: 0; color: var(--muted); font-size: .9rem; }
+.add textarea { font: 1rem var(--body); padding: 10px; border: 2px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); min-height: 130px; width: 100%; }
+.add .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.res { font-size: .9rem; display: grid; gap: 3px; max-height: 260px; overflow: auto; }
+.res .ok { color: var(--good); } .res .bad { color: var(--bad); } .res .meh { color: var(--muted); }
+.pw { font: 800 1rem ui-monospace, Consolas, monospace; letter-spacing: .04em; color: var(--ink); background: var(--gold-soft); padding: 2px 6px; border-radius: 6px; }
+.det .acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+#slips { display: none; }
+@media print {
+  body.slips > *:not(#slips) { display: none !important; }
+  body.slips #slips { display: grid; grid-template-columns: 1fr 1fr; gap: 0; font-family: var(--body); color: #000; }
+  .slip { border: 1px dashed #888; padding: 14px 16px; break-inside: avoid; }
+  .slip b { display: block; font-size: 1.1rem; margin-bottom: 6px; }
+  .slip div { margin: 3px 0; font-size: .95rem; }
+  .slip code { font-size: 1.15rem; font-weight: 800; letter-spacing: .05em; }
+  .slip small { color: #444; }
+}
 </style>
 </head>
 <body>
@@ -86,12 +106,23 @@ td.pt { white-space: normal; min-width: 330px; }
 <main id="main" hidden>
   <div class="sum" id="sum"></div>
   <div class="tools"><input id="find" type="search" placeholder="Find a student…" autocomplete="off">
+    <button class="btn go" type="button" id="addOpen">+ Add students</button>
     <button class="btn" type="button" id="reload">↻ Refresh</button><button class="btn" type="button" id="csv">Download CSV</button>
     <span class="meta" id="when"></span></div>
+  <section class="add" id="add" hidden>
+    <h3>Add students</h3>
+    <p>Paste the class's school emails: one per line, or straight from Compass or a spreadsheet (anything that isn't an email is ignored). Each student gets an account with their own password. No emails are sent.</p>
+    <textarea id="addList" placeholder="first.last@schools.vic.edu.au"></textarea>
+    <div class="row"><button class="btn go" type="button" id="addGo">Create accounts</button><button class="btn" type="button" id="addClose">Close</button><span class="meta" id="addMeta"></span></div>
+    <div class="res" id="addRes"></div>
+    <div class="row" id="addOut" hidden><button class="btn go" type="button" id="slipAll">🖨 Print password slips</button><button class="btn" type="button" id="pwCsv">Download passwords (CSV)</button>
+      <span class="meta">Print or download now: passwords can't be shown again (you can always make a new one).</span></div>
+  </section>
   <div class="tw"><table><thead><tr id="hd"></tr></thead><tbody id="rows"></tbody></table></div>
   <p class="note">Parts: % right first time across every round of that part (teacher tick-offs and gift codes not counted). Green 80%+, gold 50–79%, red under 50%. Homework: best score, ✓ = passed (60%). Tap a student for their recent rounds.</p>
 </main>
 <div class="msg" id="msg" hidden></div>
+<div id="slips"></div>
 <script>
 (function () {
   const $ = id => document.getElementById(id);
@@ -138,10 +169,7 @@ td.pt { white-space: normal; min-width: 330px; }
     const post = (path, body, tok) => call(path, { method: "POST", headers: H(tok), body: JSON.stringify(body) });
     return {
       user: () => sess && { id: sess.id, email: sess.email },
-      sendCode: email => post("/auth/v1/otp", { email, create_user: true }),
-      verify: async (email, code) => keep(fromTok(await post("/auth/v1/verify", { type: "email", email, token: code }))),
       signIn: async (email, password) => keep(fromTok(await post("/auth/v1/token?grant_type=password", { email, password }))),
-      setPassword: async password => call("/auth/v1/user", { method: "PUT", headers: H(await token()), body: JSON.stringify({ password }) }),
       signOut: async () => { const s = sess; keep(null); if (s) try { await post("/auth/v1/logout", {}, s.at); } catch (e) {} },
       // the database: /rest/v1/<table>?…
       rest: async (path, opt = {}) => call(path, Object.assign({}, opt, { headers: Object.assign(H(await token()), opt.headers || {}) })),
@@ -152,13 +180,8 @@ td.pt { white-space: normal; min-width: 330px; }
   function authMsg(e) {
     const m = String(e && e.message || ""), c = e && e.code;
     if (c === "offline") return "Can't reach the server. Check the internet connection and try again.";
-    if (c === "invalid_credentials" || /invalid login/i.test(m)) return "That email and password don't match. First time here, or forgot it? Get a code instead.";
-    if (c === "otp_expired" || /expired|invalid/i.test(m) && /token|otp|code/i.test(m)) return "That code is wrong or has expired. Check it, or get a new code.";
-    if (c === "over_email_send_rate_limit" || e && e.status === 429) return "Too many codes have been sent. Wait a minute, then try again.";
-    if (/database error saving new user/i.test(m) || c === "unexpected_failure") return "Only school email addresses can sign in.";
-    if (c === "weak_password" || /password/i.test(m) && /least|weak|short/i.test(m)) return "Choose a longer password: at least 8 characters.";
-    if (c === "same_password") return "That's already your password. You're all set.";
-    if (/signups? not allowed/i.test(m)) return "This email doesn't have an account yet. Ask your teacher.";
+    if (c === "invalid_credentials" || /invalid login/i.test(m)) return "That email and password don't match. Check them on your slip, or ask your teacher for a new password.";
+    if (e && e.status === 429) return "Too many tries. Wait a minute, then try again.";
     return "Something went wrong: " + m;
   }
 
@@ -173,7 +196,6 @@ td.pt { white-space: normal; min-width: 330px; }
 .au-box label { display: grid; gap: 4px; font-weight: 700; font-size: .9rem; }
 .au-box input { font: 700 1.05rem var(--body); padding: 10px 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); width: 100%; }
 .au-box input:focus { outline: none; border-color: var(--accent); }
-.au-box .au-code { letter-spacing: .3em; text-align: center; font-size: 1.4rem; }
 .au-go { font: 800 1.05rem var(--display); padding: 12px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; }
 .au-go:disabled { opacity: .6; cursor: wait; }
 .au-link { background: none; border: 0; padding: 0; color: var(--accent); font: 700 .92rem var(--body); text-decoration: underline; cursor: pointer; justify-self: start; }
@@ -192,53 +214,18 @@ td.pt { white-space: normal; min-width: 330px; }
     const say = (t, ok) => { const m = q(".au-msg"); m.textContent = t; m.classList.toggle("ok", !!ok); };
     const busy = async (fn) => { const b = q(".au-go"); b.disabled = true; try { await fn(); } catch (e) { say(authMsg(e)); } b.disabled = false; };
     const checkEmail = v => { v = v.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+$/.test(v)) { say("Type your school email address."); return null; }
-      return v; }; // which emails may sign up is checked by the database (school emails + the teachers list)
+      return v; };
+    // Accounts are made by the teacher (on the teacher page), so there's only one step: email and password.
     function stepPassword() {
       const f = box(`<p>${opts.sub}</p>
         <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
         <label>Password<input type="password" name="pw" autocomplete="current-password"></label>
         <button class="au-go" type="submit">Sign in</button>
-        <button class="au-link" type="button" data-code>First time here, or forgot your password? Get a code</button>`);
+        <p class="au-small">Your password is on the slip from your teacher. Lost it or forgot it? Ask your teacher for a new one.</p>`);
       q(email ? "[name=pw]" : "[name=em]").focus();
-      q("[data-code]").onclick = () => { email = q("[name=em]").value.trim(); stepEmail(); };
       f.onsubmit = e => { e.preventDefault(); const v = checkEmail(q("[name=em]").value); if (!v) return; email = v;
         const pw = q("[name=pw]").value; if (!pw) { say("Type your password."); return; }
         busy(async () => { await auth.signIn(v, pw); done(); }); };
-    }
-    function stepEmail() {
-      const f = box(`<p>We'll email a code to your school email. Open Outlook to find it.</p>
-        <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
-        <button class="au-go" type="submit">Email me a code</button>
-        <button class="au-link" type="button" data-back>I have a password: sign in</button>`);
-      q("[name=em]").focus();
-      q("[data-back]").onclick = () => { email = q("[name=em]").value.trim(); stepPassword(); };
-      f.onsubmit = e => { e.preventDefault(); const v = checkEmail(q("[name=em]").value); if (!v) return; email = v;
-        busy(async () => { await auth.sendCode(v); stepCode(); }); };
-    }
-    function stepCode() {
-      const f = box(`<p>We sent a code to <b>${esc2(email)}</b>. It can take a minute to arrive. Check Junk too.</p>
-        <label>Code<input class="au-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></label>
-        <button class="au-go" type="submit">Check code</button>
-        <button class="au-link" type="button" data-again>Send a new code</button>
-        <button class="au-link" type="button" data-back>Use a different email</button>`);
-      q("[name=code]").focus();
-      q("[data-back]").onclick = stepEmail;
-      q("[data-again]").onclick = () => busy(async () => { await auth.sendCode(email); say("New code sent.", true); });
-      f.onsubmit = e => { e.preventDefault(); const c = q("[name=code]").value.replace(/\D/g, "");
-        if (c.length < 6) { say("Type the code from the email."); return; }
-        busy(async () => { await auth.verify(email, c); stepNewPassword(); }); };
-    }
-    function stepNewPassword() {
-      const f = box(`<p>Choose a password so you can sign in without a code next time.</p>
-        <input type="email" name="em" autocomplete="username" value="${esc2(email)}" hidden>
-        <label>New password (8 or more characters)<input type="password" name="pw" autocomplete="new-password"></label>
-        <label>Type it again<input type="password" name="pw2" autocomplete="new-password"></label>
-        <button class="au-go" type="submit">Save password</button>`);
-      q("[name=pw]").focus();
-      f.onsubmit = e => { e.preventDefault(); const a = q("[name=pw]").value, b = q("[name=pw2]").value;
-        if (a.length < 8) { say("Use at least 8 characters."); return; }
-        if (a !== b) { say("The two passwords don't match."); return; }
-        busy(async () => { try { await auth.setPassword(a); } catch (x) { if (x.code !== "same_password") throw x; } done(); }); };
     }
     function done() { wrap.hidden = true; wrap.innerHTML = ""; opts.onDone(auth.user()); }
     return { show() { wrap.hidden = false; stepPassword(); }, hide() { wrap.hidden = true; } };
@@ -265,7 +252,8 @@ td.pt { white-space: normal; min-width: 330px; }
     const hw = HOMEWORK.map(w => { const b = H.filter(h => h.m === "homework" && h.hw === w.id).reduce((a, h) => !a || h.s / h.n > a.s / a.n ? h : a, null);
       return { w, best: b, pass: !!b && b.n >= 20 && b.s / b.n >= (b.d < Date.parse("2026-11-05T04:05:00Z") ? 0.5 : HW_PASS) }; });
     const last = Math.max(Date.parse(row.updated_at) || 0, ...H.map(h => h.d || 0));
-    return { name: p.name && !/^student$/i.test(p.name) ? p.name : row.name || nameFromEmail(row.email), email: row.email, p, H, parts, done, right, today, hw, last,
+    const real = n => !!n && !/^(student|student name|your name|name)?$/i.test(String(n).trim());
+    return { name: real(p.name) ? p.name : real(row.name) ? row.name : nameFromEmail(row.email), email: row.email, p, H, parts, done, right, today, hw, last,
       points: p.points || 0, rounds: H.length };
   }
   const cls = v => v == null ? "n" : v >= 80 ? "g" : v >= 50 ? "a" : "r";
@@ -287,19 +275,22 @@ td.pt { white-space: normal; min-width: 330px; }
     $("rows").innerHTML = list.map(s => {
       const wk = Date.now() - s.last > 7 * 864e5;
       const row = `<tr data-e="${esc(s.email)}"><td class="nm"><b>${esc(s.name)}</b><small>${esc(s.email)}</small></td>
-        <td class="${wk ? "old" : ""}">${s.last ? ago(s.last) : "–"}</td><td class="num">${s.points.toLocaleString("en-AU")}</td>
+        <td class="${wk ? "old" : ""}">${s.never ? "Not signed in yet" : s.last ? ago(s.last) : "–"}</td><td class="num">${s.points.toLocaleString("en-AU")}</td>
         <td class="num">${s.done} done · ${s.done ? pct(s.right, s.done) + "%" : "–"}</td><td class="num">${s.today.tried ? `${s.today.right}/${s.today.tried}` : "–"}</td>
         <td>${s.hw.map(x => `<span class="chip ${x.pass ? "g" : x.best ? "r" : Date.now() > x.w.due ? "r" : "n"}" title="Week ${x.w.week}">W${x.w.week} ${x.best ? (x.pass ? "✓ " : "") + x.best.s + "/" + x.best.n : Date.now() > x.w.due ? "✗" : "–"}</span>`).join("")}</td>
         <td class="pt">${PARTS.map(id => { const x = s.parts["m" + id], v = x ? pct(x[0], x[1]) : null; return `<span class="chip ${cls(v)}" title="${id}: ${x ? x[0] + "/" + x[1] : "not tried"}">${id} ${v == null ? "" : v + "%"}</span>`; }).join("")}</td></tr>`;
       if (open !== s.email) return row;
       const recent = s.H.slice(-20).reverse().map(h => `<li>${new Date(h.d).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} · <b>${esc(MODE[h.m] || h.m)}${h.hw ? " " + esc(h.hw) : ""}</b> · ${h.s}/${h.n}${h.parts ? " · " + Object.keys(h.parts).map(k => k.replace(/^m/, "")).join(", ") : ""}</li>`).join("");
-      return row + `<tr class="det"><td colspan="${COLS.length}"><h4>Recent rounds (newest first)</h4>${recent ? `<ul>${recent}</ul>` : "<p>No rounds yet.</p>"}</td></tr>`;
+      const np = newPw[s.email];
+      return row + `<tr class="det"><td colspan="${COLS.length}"><h4>Recent rounds (newest first)</h4>${recent ? `<ul>${recent}</ul>` : "<p>No rounds yet.</p>"}
+        <div class="acts">${np ? `New password: <span class="pw">${esc(np)}</span><button class="btn" type="button" data-slip="${esc(s.email)}">🖨 Print slip</button>`
+          : `<button class="btn" type="button" data-reset="${esc(s.email)}">New password</button><span class="meta">For a student who forgot theirs. Their old password stops working.</span>`}</div></td></tr>`;
     }).join("");
   }
   function paintSum() {
     const day = melDay(Date.now()), act = all.filter(s => s.today.tried), wk = all.filter(s => Date.now() - s.last < 7 * 864e5);
     const cur = HOMEWORK.find(h => Date.now() < h.due);
-    $("sum").innerHTML = `<div><b>${all.length}</b><span>students signed in</span></div><div><b>${act.length}</b><span>practised today</span></div>
+    $("sum").innerHTML = `<div><b>${all.length}</b><span>student accounts</span></div><div><b>${all.filter(s => !s.never).length}</b><span>have signed in</span></div><div><b>${act.length}</b><span>practised today</span></div>
       <div><b>${wk.length}</b><span>active this week</span></div>
       ${cur ? `<div><b>${all.filter(s => s.hw.find(x => x.w === cur && x.pass)).length}/${all.length}</b><span>done Week ${cur.week} homework</span></div>` : ""}
       <div><b>${act.reduce((a, s) => a + s.today.tried, 0)}</b><span>questions today</span></div>`;
@@ -307,8 +298,11 @@ td.pt { white-space: normal; min-width: 330px; }
   async function loadAll() {
     $("when").textContent = "Loading…";
     try {
-      const rows = await CA.rest("/rest/v1/progress?select=email,name,updated_at,data&order=updated_at.desc");
-      all = rows.filter(r => r.email !== (CA.user() || {}).email).map(summary);
+      const [rows, accts] = await Promise.all([CA.rest("/rest/v1/progress?select=email,name,updated_at,data&order=updated_at.desc"),
+        CA.rest("/rest/v1/rpc/teacher_list_students", { method: "POST", body: "{}" }).catch(() => [])]);
+      const have = new Set(rows.map(r => r.email));
+      all = rows.filter(r => r.email !== (CA.user() || {}).email).map(summary)
+        .concat((accts || []).filter(a => !have.has(a.email)).map(a => Object.assign(summary({ email: a.email, data: {} }), { never: true })));
       paintSum(); paint(); $("when").textContent = "Updated " + new Date().toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
     } catch (e) { if (e.status === 401) { gate.show(); return; } $("when").textContent = authMsg(e); }
   }
@@ -321,6 +315,60 @@ td.pt { white-space: normal; min-width: 330px; }
     } catch (e) { if (e.status === 401) { gate.show(); return; } $("msg").hidden = false; $("msg").textContent = authMsg(e); return; }
     $("top").hidden = $("main").hidden = false; $("who").textContent = u.email; loadAll();
   }
+  // Passwords students can read and type: two words and a number, e.g. MapleRocket482
+  const WORDS = "apple,arrow,badge,beach,berry,blaze,bloom,brick,cabin,camel,candy,cedar,chalk,cliff,cloud,comet,coral,crane,daisy,delta,eagle,ember,fable,feast,fern,flame,flint,frost,gecko,ghost,glade,globe,grape,grove,hazel,honey,igloo,ivory,jelly,koala,lemon,lilac,llama,lotus,mango,maple,marsh,medal,melon,mint,moose,noble,north,ocean,olive,orbit,otter,panda,pearl,penny,piano,pixel,plume,polar,prism,quail,raven,ridge,river,robin,rocket,saber,sable,scout,shell,slate,solar,spark,spice,storm,sugar,swift,tiger,toast,topaz,tulip,ultra,vapor,velvet,viper,wagon,whale,wheat,yacht,zebra".split(",");
+  const cap = w => w[0].toUpperCase() + w.slice(1);
+  function makePw() { const r = n => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+    let a = WORDS[r(WORDS.length)], b; do b = WORDS[r(WORDS.length)]; while (b === a);
+    return cap(a) + cap(b) + String(100 + r(900)); }
+  const SITE = location.href.replace(/teacher\.html.*$/, "");
+  let made = [];            // [{email, name, pw}] from the last "Create accounts"
+  const newPw = {};         // email → password just made with "New password"
+  function printSlips(list) {
+    $("slips").innerHTML = list.map(x => `<div class="slip"><b>${esc(x.name)}</b><div>Go to: <small>${esc(SITE)}</small></div>
+      <div>Email: <code>${esc(x.email)}</code></div><div>Password: <code>${esc(x.pw)}</code></div><small>Keep this slip private. Lost it? Ask your teacher for a new password.</small></div>`).join("");
+    document.body.classList.add("slips"); window.print(); setTimeout(() => document.body.classList.remove("slips"), 500);
+  }
+  const rpc = (fn, args) => CA.rest("/rest/v1/rpc/" + fn, { method: "POST", body: JSON.stringify(args) });
+  $("addOpen").onclick = () => { $("add").hidden = false; $("addList").focus(); };
+  $("addClose").onclick = () => { $("add").hidden = true; };
+  $("addGo").onclick = async () => {
+    const emails = [...new Set(($("addList").value.toLowerCase().match(/[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]+/g) || []))];
+    if (!emails.length) { $("addMeta").textContent = "No email addresses found in that."; return; }
+    $("addGo").disabled = true; $("addRes").innerHTML = ""; made = [];
+    for (let i = 0; i < emails.length; i++) {
+      const e = emails[i], name = nameFromEmail(e); $("addMeta").textContent = `Working… ${i + 1} of ${emails.length}`;
+      let line;
+      if (!e.endsWith("@schools.vic.edu.au")) line = `<span class="bad">✗ ${esc(e)}: not a school email (must end in @schools.vic.edu.au)</span>`;
+      else try {
+        const pw = makePw(), r = await rpc("teacher_add_student", { student_email: e, student_password: pw });
+        if (r === "created") { made.push({ email: e, name, pw }); line = `<span class="ok">✓ ${esc(name)} (${esc(e)}): <span class="pw">${esc(pw)}</span></span>`; }
+        else if (r === "exists") line = `<span class="meh">• ${esc(e)} already has an account. To give them a new password, tap their name in the list below.</span>`;
+        else line = `<span class="bad">✗ ${esc(e)}: ${esc(r)}</span>`;
+      } catch (x) { line = `<span class="bad">✗ ${esc(e)}: ${esc(authMsg(x))}</span>`; }
+      $("addRes").insertAdjacentHTML("beforeend", `<div>${line}</div>`);
+    }
+    $("addGo").disabled = false; $("addMeta").textContent = `${made.length} account${made.length === 1 ? "" : "s"} made.`;
+    $("addOut").hidden = !made.length; if (made.length) $("addList").value = "";
+    loadAll();
+  };
+  $("slipAll").onclick = () => printSlips(made);
+  $("pwCsv").onclick = () => {
+    const q = v => `"${String(v).replace(/"/g, '""')}"`;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([["Name,Email,Password", ...made.map(x => [x.name, x.email, x.pw].map(q).join(","))].join("\n")], { type: "text/csv" }));
+    a.download = `times-tables-50-passwords-${melDay(Date.now())}.csv`; a.click();
+  };
+  $("rows").addEventListener("click", async e => {
+    const r = e.target.closest("[data-reset]"), sl = e.target.closest("[data-slip]");
+    if (sl) { e.stopPropagation(); const s = all.find(x => x.email === sl.dataset.slip); printSlips([{ email: s.email, name: s.name, pw: newPw[s.email] }]); return; }
+    if (!r) return; e.stopPropagation();
+    const em = r.dataset.reset; if (!confirm(`Make a new password for ${em}? Their old one will stop working.`)) return;
+    r.disabled = true;
+    try { const pw = makePw(), res = await rpc("teacher_set_password", { student_email: em, student_password: pw });
+      if (res !== "done") throw new Error(res); newPw[em] = pw; paint(); }
+    catch (x) { r.disabled = false; alert("Couldn't change it: " + authMsg(x)); }
+  }, true);
+
   async function out() { await CA.signOut(); location.reload(); }
   $("out").onclick = out;
   $("reload").onclick = loadAll;
