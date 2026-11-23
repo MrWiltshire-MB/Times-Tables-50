@@ -4417,7 +4417,7 @@ td.dim, td .dim { color: var(--muted); }
   function rewardList(mine, intro) {
     const gps = mine.filter(([v]) => v.r === "greenpost").length;
     return `<div class="mr-head"><h3>${intro}</h3>${gps > 1 ? `<button class="btn" type="button" data-redeem-all>Teacher: activate all ${gps} Green Posts</button>` : ""}</div>
-      <p class="hint">Show your teacher. They enter their code to give you ${mine.length > 1 ? "each reward, or every Green Post at once" : "the reward"}.</p>
+      <p class="hint">Show your teacher to collect ${mine.length > 1 ? "them" : "it"}.</p>
       <div class="vouchers">` + mine.map(([v, i]) => `<div class="voucher"><div><b>${esc(CR[v.r] ? CR[v.r].name : v.r)}</b><p>${esc(P().name)} · ${v.auto ? "earned" : "bought"} ${fmtDay(v.d)}</p></div><span class="vcode">${v.code}</span><button class="btn sm" type="button" data-redeem="${i}">Teacher: activate</button></div>`).join("") + `</div>`;
   }
   function paintMyRewards() {
@@ -4427,9 +4427,9 @@ td.dim, td .dim { color: var(--muted); }
   const afterGive = () => { if (view === "homeView") renderHome(); else renderRewards(); setTimeout(confetti, 100); };
   function openRedeemAll() {
     const gp = unusedRewards().filter(([v]) => v.r === "greenpost").map(([v]) => v); if (!gp.length) return;
-    askTeacherCode(`Activate all ${gp.length} Green Posts`, `Teacher only. Enter the teacher code to give ${esc(P().name)} all ${gp.length} Green Posts at once.`, "Activate all", () => {
-      const t = Date.now(); gp.forEach(v => { v.used = true; v.usedAt = t; }); save(); afterGive();
-    });
+    // Green Posts don't need the teacher code: a confirm is enough
+    if (!confirm(`Give ${P().name} all ${gp.length} Green Posts?`)) return;
+    const t = Date.now(); gp.forEach(v => { v.used = true; v.usedAt = t; }); save(); afterGive();
   }
   $("myRewards").addEventListener("click", e => {
     if (e.target.closest("[data-redeem-all]")) { openRedeemAll(); return; }
@@ -4438,6 +4438,7 @@ td.dim, td .dim { color: var(--muted); }
   function openRedeem(i) {
     const v = wallet().vouchers[i]; if (!v || v.used) return;
     const name = esc(CR[v.r] ? CR[v.r].name : v.r);
+    if (v.r === "greenpost") { if (confirm(`Give ${P().name} this Green Post?`)) { v.used = true; v.usedAt = Date.now(); save(); afterGive(); } return; }
     askTeacherCode(`Activate: ${name}`, `Teacher only. Enter the teacher code to give ${esc(P().name)} this ${name}.`, "Activate", () => {
       v.used = true; v.usedAt = Date.now(); save(); afterGive();
     });
