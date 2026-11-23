@@ -3546,7 +3546,14 @@ td.dim, td .dim { color: var(--muted); }
   $("toHome").onclick = goBack;
   $("home").onclick = () => askLeave(goHome);
   // The logo goes home too (same as the Home button, including the "leave this round?" check)
-  $("logo").onclick = () => { if (view !== "homeView") $("home").click(); };
+  // Hidden way in to the teacher version: on the home screen, tap the "50" in the logo 5 times within 3 seconds
+  let logoTaps = [];
+  $("logo").onclick = e => {
+    if (view !== "homeView") { $("home").click(); return; }
+    if (!e.target.closest("#logo span") || teacherMode()) return;
+    const t = Date.now(); logoTaps = logoTaps.filter(x => t - x < 3000).concat(t);
+    if (logoTaps.length >= 5) { logoTaps = []; openTeacherMode(); }
+  };
 
   /* ---------- progress ---------- */
   let pending = null;
@@ -4480,7 +4487,7 @@ td.dim, td .dim { color: var(--muted); }
   function paintTeacherMode() {
     document.documentElement.classList.toggle("teacher-mode", teacherMode());
     if (typeof paintName === "function") paintName();
-    $("tmode").innerHTML = teacherMode() ? `<button type="button" data-devcheck>Check this device</button><b>Teacher version</b><button type="button" data-tmode="off">Switch to student</button>` : `<button type="button" data-devcheck>Check this device</button><button type="button" data-tmode="on">Teacher version</button>`;
+    $("tmode").innerHTML = teacherMode() ? `<button type="button" data-devcheck>Check this device</button><b>Teacher version</b><button type="button" data-tmode="off">Switch to student</button>` : `<button type="button" data-devcheck>Check this device</button>`; // no Teacher version link: tap the logo's "50" five times on the home screen
     if (view === "quiz") $("skipBtn").hidden = !teacherMode();
     if (view === "homeView") renderHome();
   }
@@ -4503,8 +4510,11 @@ td.dim, td .dim { color: var(--muted); }
     if (e.target.closest("[data-devcheck]")) return;
     const b = e.target.closest("[data-tmode]"); if (!b) return;
     if (b.dataset.tmode === "off") { store.settings.teacher = false; save(); paintTeacherMode(); return; }
-    askTeacherCode("Teacher version", "Enter the teacher code. The teacher version lets you skip questions and opens everything.", "Switch", () => { store.settings.teacher = true; save(); paintTeacherMode(); }, teacherModeOK, niceTry);
+    openTeacherMode();
   });
+  function openTeacherMode() {
+    askTeacherCode("Teacher version", "Enter the teacher code. The teacher version lets you skip questions and opens everything.", "Switch", () => { store.settings.teacher = true; save(); paintTeacherMode(); }, teacherModeOK, niceTry);
+  }
   let pinFails = 0, pinWait = 0, bkData = null;
   const fmtStamp = t => new Date(t).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
   function closeBackup() { $("bkModal").hidden = true; bkData = null; if (typeof paintName === "function") paintName(); if (typeof view !== "undefined" && view === "homeView" && typeof renderHome === "function") renderHome(); }
