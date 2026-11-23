@@ -3008,7 +3008,7 @@ td.dim, td .dim { color: var(--muted); }
       const pick = it.filter((x, j) => m >> j & 1); if (pick.length < 2) continue;
       if (node.k === "mul" && pick.filter(x => !(x.n.k === "n" && Math.abs(x.n.v) === 1)).length < 2) continue; // × 1 (from ½) adds nothing
       // a π formula with its "× 2" left out (90/360 × π × 5 for 90/360 × 2π × 5) is a mistake, not a step
-      if (node.k === "mul" && pick.some(x => x.n.k === "n" && Math.abs(x.n.v - Math.PI) < 1e-9) && it.some(x => !pick.includes(x) && !x.d && x.n.k === "n" && x.n.v === 2)) continue;
+      if (node.k === "mul" && pick.some(x => x.n.k === "n" && (Math.abs(x.n.v - Math.PI) < 1e-9 || x.n.v === 3.14)) && it.some(x => !pick.includes(x) && !x.d && x.n.k === "n" && x.n.v === 2)) continue;
       // only method constants (½, 2 × …): not a step, unless they're the question's own sizes (a 4 m by 2 m room: 4 × 2)
       if (pick.every(x => x.n.k === "n" && [1, 2, 4, 360].includes(Math.abs(x.n.v))) && !pick.every(x => given.includes(Math.abs(x.n.v)))) continue;
       if (node.k === "mul") {
@@ -3041,6 +3041,8 @@ td.dim, td .dim { color: var(--muted); }
     if (q.dia && q.dia.u) (JSON.stringify(q.dia).match(/\d+(\.\d+)?/g) || []).forEach(v => unitFactors(q.dia.u).forEach(k => leafReps.push(+v * k)));
     // π, π/2 and π/4 on their own aren't worked-out values (they come from ½ × π × …, not from the question's numbers)
     const piBit = v => [0.25, 0.5, 1].some(k => Math.abs(v - k * Math.PI) < 1e-9) && !qn.some(n => [0.5, 1, 2].some(k => Math.abs(k * n * Math.PI - v) < 1e-9));
+    // "Use π ≈ 22/7" questions: the same working with π itself is a fair step too (C = π × 28, then 22/7 × 28)
+    if (APPROX_PI.test(q.html || "")) { const pc = calcLine(q.calc.replace(/22\s*\/\s*7|3\.14/g, "π")), pt = pc && calcTree(pc.norm.split("=")[0]); if (pt) stepVals(pt, out, [], given.map(Number)); }
     const scale = /^m10[AEKL]$/.test(q.t), vals = out.map(Math.abs).filter(v => !piBit(v)), af = unitFactors(q.suf);
     return stepCache[sk] = { terms, vals, leaves: qn, mleaves: leaves, derived, scale, leafReps,
       // only whole amounts can be rewritten in another unit: the answer, and sums (3 kg + 1.5 kg in grams), not part-products
@@ -3091,8 +3093,11 @@ td.dim, td .dim { color: var(--muted); }
   // letters to the question's numbers so that one letter is the answer and another is a number given in the question.
   const relTol = q => q.tol ? Math.max(0.002, 2 * q.tol / Math.max(Math.abs(q.ans), 1e-9)) : 1e-6;
   const mvCache = {};
+  const APPROX_PI = /Use π ≈/;
   function modelVals(q, si) {
     const ck = q.t + "|" + q.calc + "|" + q.ans + "|" + q.html + "|" + (q.sub || "") + "|" + JSON.stringify(q.dia || {}); if (mvCache[ck]) return mvCache[ck];
+    // "Use π ≈ 22/7 / 3.14": the sizes don't fit the real-π shape, so named lines (C = 22/7 × 28) are checked by their value instead
+    if (APPROX_PI.test(q.html || "")) return mvCache[ck] = [];
     const rel = relTol(q), near = (u, w) => Math.abs(u - w) <= rel * Math.max(Math.abs(u), Math.abs(w), 1e-9);
     const given = [...new Set(si.leaves.filter(x => x > 0))].slice(0, 6), cand = [q.ans, ...given].filter(x => x > 0), out = [];
     // a given number; a radius or diameter may also be half / double a given number (r from a marked width)
@@ -3265,7 +3270,12 @@ td.dim, td .dim { color: var(--muted); }
     if (c && lab) {
       const L = lab[1].toUpperCase(), mvL = modelVals(q, si).filter(m => L in m).map(m => m[L]), v0 = c.vals[c.vals.length - 1];
       const rel = relTol(q), close = v => Math.abs(v - v0) <= Math.max(1e-6 * Math.max(1, Math.abs(v)), rel * Math.max(Math.abs(v), Math.abs(v0)), Math.abs(v - q.ans) < 1e-9 ? Math.max(q.tol || 0, 1e-6) : 0);
-      if (mvL.length && !mvL.some(close)) return WRONG;
+      // V = 25 × 10 × 10 ÷ 1000 = 2.5 L: the letter's amount written in the answer's unit is fine too
+      // A named line that works out the answer itself is fine, unless the question asks for one size of a shape
+      // (then "P = 17" for the width names the wrong thing)
+      const isAnsLine = Math.abs(v0 - q.ans) <= Math.max(q.tol || 0, 1e-6);
+      const inAnsUnit = isAnsLine && (mvL.some(v => inSet(v, si.ansScaled)) || !/Find (?:its|the) (?:width|diameter|radius|base|height|length|side)/i.test(q.sub || ""));
+      if (mvL.length && !mvL.some(close) && !inAnsUnit) return WRONG;
       // a size worked out on the way (r = 5.5 from a diameter of 11): a step
       const hit = mvL.find(v => nearV(v0, v) || Math.abs(v - v0) <= 1e-6 * Math.max(1, Math.abs(v)));
       if (hit !== undefined && Math.abs(hit - q.ans) > Math.max(q.tol || 0, 1e-6) && c.vals.every(v => Math.abs(v - v0) <= 1e-6 * Math.max(1, Math.abs(v0)) || nearV(v, v0))) {
