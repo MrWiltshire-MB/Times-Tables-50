@@ -2478,11 +2478,11 @@ td.dim, td .dim { color: var(--muted); }
     document.querySelectorAll(NUM_MODES.map(m => `[data-start="${m}"]`).join(",")).forEach(b => { b.disabled = st.locked; });
     document.querySelectorAll(".tile").forEach(t => t.classList.toggle("first", st.locked && t.querySelector(`[data-open="topic:${(topic || {}).id}"]`)));
   }
-  // A part done perfectly twice on its own (20+ questions, 100%) locks until every other part of the chapter has
+  // During school hours, a part done perfectly twice on its own (20+ questions, 100%) locks until every other part of the chapter has
   // a round at 80% or more, so students move on to new content. Mixed rounds, homework and tricky ones still use it.
   // Returns the parts still needed, or null when it isn't locked. The teacher version is never locked.
   function partLock(tp, id) {
-    if (!tp || teacherMode()) return null;
+    if (!tp || teacherMode() || !hwLocked()) return null; // only during school hours (weekdays 9:00 am–3:10 pm); everything is open outside them
     const key = tp.prefix + id, H = P().history;
     const perfect = H.filter(h => h.m === tp.mode && !h.gift && h.parts && Object.keys(h.parts).length === 1 && h.parts[key] && h.n >= 20 && h.s === h.n).length;
     if (perfect < 2) return null;
@@ -2513,7 +2513,7 @@ td.dim, td .dim { color: var(--muted); }
       const bestR = solo.reduce((a, h) => !a || h.s / h.n > a.s / a.n || (h.s / h.n === a.s / a.n && h.n > a.n) ? h : a, null), lastR = solo[solo.length - 1];
       const sc = solo.length ? `<span class="pscore">Best <b>${bestR.s}/${bestR.n}</b> · Last <b>${lastR.s}/${lastR.n}</b></span>` : `<span class="pscore">Not played on its own yet</span>`;
       b.innerHTML = `<b>${id}${done ? ` <span class="mastered">✓ ${Math.round(rate * 100)}%</span>` : rate !== null ? ` <span class="rate">${Math.round(rate * 100)}%</span>` : ""}</b>${label}${sc}`
-        + (lk ? `<span class="plock">🔒 Mastered! Locked until you get 80%+ on ${lk.join(", ")}</span>` : "");
+        + (lk ? `<span class="plock">🔒 Mastered! Locked in school hours until you get 80%+ on ${lk.join(", ")}</span>` : "");
       if (lk) { b.classList.add("locked"); b.setAttribute("aria-disabled", "true"); }
       b.setAttribute("aria-pressed", !lk && sel.includes(id));
       b.addEventListener("click", () => {
@@ -4176,7 +4176,7 @@ td.dim, td .dim { color: var(--muted); }
     }
     const ltp = TOPICS.find(t => t.mode === lockMode());
     const chip = ([id, ok, b]) => { const lk = partLock(ltp, id);
-      return `<button type="button" class="req-btn${gpCls(ok, b)}" data-gp="${id}" title="${lk ? `Mastered! Locked until you get 80%+ on ${lk.join(", ")}` : `Start a 20-question round of ${id}`}">${ok ? "✓ " : ""}${id}${lk ? " 🔒" : ""}</button>`; };
+      return `<button type="button" class="req-btn${gpCls(ok, b)}" data-gp="${id}" title="${lk ? `Mastered! Locked in school hours until you get 80%+ on ${lk.join(", ")}` : `Start a 20-question round of ${id}`}">${ok ? "✓ " : ""}${id}${lk ? " 🔒" : ""}</button>`; };
     if (ap.sets.length > 1) {
       $("gpText").textContent = `Do a 20-question round of each part on its own. Each set earns its own Green Post. Tap a part to start.`;
       $("gpParts").innerHTML = ap.sets.map(g => { const l = g.subs.filter(x => !x[1]).length;
