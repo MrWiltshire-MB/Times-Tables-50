@@ -3025,7 +3025,18 @@ td.dim, td .dim { color: var(--muted); }
     }
   }
   const stepCache = {};
+  // Questions saved before a change (in an unfinished round or the tricky list) get the newer working and methods
+  function upgradeQ(q) {
+    if (!q || q.alt) return;
+    const h = String(q.html || "").replace(/<[^>]+>/g, " "), n = (h.match(/\d+(\.\d+)?/g) || []).map(Number);
+    if (/is packed with small boxes/.test(h) && n.length === 6) {
+      const [L, H, W, a, b, c] = n;
+      q.calc = `(${L} ÷ ${a}) × (${H} ÷ ${b}) × (${W} ÷ ${c})`; q.alt = [`${L} × ${H} × ${W} ÷ (${a} × ${b} × ${c})`]; q.noLetters = true;
+      if (q.model) q.model[0] = q.calc;
+    } else if (/^A rectangle has a perimeter of/.test(h) && /width/i.test(q.sub || "") && n.length === 2) q.alt = [`${n[0]} ÷ 2 − ${n[1]}`];
+  }
   function stepInfo(q) {
+    upgradeQ(q);
     const sk = q.calc + "|" + q.html + "|" + (q.sub || "") + "|" + JSON.stringify(q.dia || {}); // same sum, different shape: different numbers given
     if (stepCache[sk]) return stepCache[sk];
     const out = [], leaves = [], c = calcLine(q.calc), t = c && calcTree(c.norm.split("=")[0]);
