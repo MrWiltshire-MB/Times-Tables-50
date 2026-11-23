@@ -1639,7 +1639,7 @@ td.dim, td .dim { color: var(--muted); }
       () => { const s = pick([15.5, 12, 8.4, 20, 7.5]), ans = r6(3 * s);
         return word("m10B", { html: `An equilateral triangle has all sides the same length. Each side is ${s} mm.`, sub: "Find its perimeter", ans, suf: "mm", hint: "Three equal sides, so perimeter = 3 × side.", fact: `3 × ${s} = <b>${num(ans)} mm</b>` }); },
       () => { const l = ri(4, 20), w = ri(2, l), P = 2 * (l + w);
-        return word("m10B", { html: `A rectangle has a perimeter of ${P} cm and a length of ${l} cm.`, sub: "Find its width", ans: w, suf: "cm", hint: `The two lengths use 2 × ${l} = ${2 * l} cm. Take that from ${P}, then halve what's left.`, calc: `(${P} − ${2 * l}) ÷ 2`, fact: `(${P} − ${2 * l}) ÷ 2 = <b>${w} cm</b>` }); },
+        return word("m10B", { html: `A rectangle has a perimeter of ${P} cm and a length of ${l} cm.`, sub: "Find its width", ans: w, suf: "cm", hint: `The two lengths use 2 × ${l} = ${2 * l} cm. Take that from ${P}, then halve what's left.`, calc: `(${P} − ${2 * l}) ÷ 2`, alt: [`${P} ÷ 2 − ${l}`], fact: `(${P} − ${2 * l}) ÷ 2 = <b>${w} cm</b>` }); }, // or half the perimeter take away the length
       () => { const s = ri(3, 25), P = 4 * s;
         return word("m10B", { html: `A square has a perimeter of ${P} m.`, sub: "Find its side length", ans: s, suf: "m", hint: "A square has 4 equal sides. Divide the perimeter by 4.", fact: `${P} ÷ 4 = <b>${s} m</b>` }); },
       () => { const l = ri(12, 30) * 10 + ri(1, 9), w = ri(3, 9) + ri(1, 9) / 10, ans = r6(2 * (l / 10 + w));
@@ -1843,7 +1843,10 @@ td.dim, td .dim { color: var(--muted); }
   function genMatch() {
     const [a, b, c] = pick([[5, 2, 3], [4, 2, 1], [10, 5, 2], [6, 3, 2]]), m1 = ri(2, 6), m2 = ri(2, 6), m3 = ri(2, 6), ans = m1 * m2 * m3;
     return word("m10I", { html: `A box ${a * m1} cm long, ${b * m2} cm high and ${c * m3} cm wide is packed with small boxes ${a} cm long, ${b} cm high and ${c} cm wide.`, sub: "How many small boxes fit?", ans,
-      hint: "Work out how many fit along each edge (length, height, width), then multiply.", calc: `${m1} × ${m2} × ${m3}`, fact: `${m1} × ${m2} × ${m3} = <b>${ans}</b> boxes` });
+      hint: "Work out how many fit along each edge (length, height, width), then multiply.", calc: `(${a * m1} ÷ ${a}) × (${b * m2} ÷ ${b}) × (${c * m3} ÷ ${c})`,
+      // the volume way works too here (the small boxes fit exactly): big volume ÷ small volume. Any letter can name a line.
+      alt: [`${a * m1} × ${b * m2} × ${c * m3} ÷ (${a} × ${b} × ${c})`], noLetters: true,
+      fact: `${m1} × ${m2} × ${m3} = <b>${ans}</b> boxes` });
   }
 
   // 10J
@@ -3042,6 +3045,7 @@ td.dim, td .dim { color: var(--muted); }
     // π, π/2 and π/4 on their own aren't worked-out values (they come from ½ × π × …, not from the question's numbers)
     const piBit = v => [0.25, 0.5, 1].some(k => Math.abs(v - k * Math.PI) < 1e-9) && !qn.some(n => [0.5, 1, 2].some(k => Math.abs(k * n * Math.PI - v) < 1e-9));
     // "Use π ≈ 22/7" questions: the same working with π itself is a fair step too (C = π × 28, then 22/7 × 28)
+    (q.alt || []).forEach(a => { const ac = calcLine(a), at = ac && calcTree(ac.norm.split("=")[0]); if (at) stepVals(at, out, leaves, given.map(Number)); }); // other correct methods
     if (APPROX_PI.test(q.html || "")) { const pc = calcLine(q.calc.replace(/22\s*\/\s*7|3\.14/g, "π")), pt = pc && calcTree(pc.norm.split("=")[0]); if (pt) stepVals(pt, out, [], given.map(Number)); }
     const scale = /^m10[AEKL]$/.test(q.t), vals = out.map(Math.abs).filter(v => !piBit(v)), af = unitFactors(q.suf);
     return stepCache[sk] = { terms, vals, leaves: qn, mleaves: leaves, derived, scale, leafReps,
@@ -3097,7 +3101,7 @@ td.dim, td .dim { color: var(--muted); }
   function modelVals(q, si) {
     const ck = q.t + "|" + q.calc + "|" + q.ans + "|" + q.html + "|" + (q.sub || "") + "|" + JSON.stringify(q.dia || {}); if (mvCache[ck]) return mvCache[ck];
     // "Use π ≈ 22/7 / 3.14": the sizes don't fit the real-π shape, so named lines (C = 22/7 × 28) are checked by their value instead
-    if (APPROX_PI.test(q.html || "")) return mvCache[ck] = [];
+    if (APPROX_PI.test(q.html || "") || q.noLetters) return mvCache[ck] = [];
     const rel = relTol(q), near = (u, w) => Math.abs(u - w) <= rel * Math.max(Math.abs(u), Math.abs(w), 1e-9);
     const given = [...new Set(si.leaves.filter(x => x > 0))].slice(0, 6), cand = [q.ans, ...given].filter(x => x > 0), out = [];
     // a given number; a radius or diameter may also be half / double a given number (r from a marked width)
