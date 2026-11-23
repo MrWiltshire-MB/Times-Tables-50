@@ -358,12 +358,13 @@ input#stuName[readonly] { background: var(--paper); border-style: dashed; cursor
 /* home: Green Post panel on the left, main column in the middle, homework panel on the right */
 .wrap:has(> #homeView:not([hidden])) { max-width: 1200px; }
 #homeView { width: 100%; }
-.home-top { display: grid; grid-template-columns: 220px minmax(0,1fr) 260px; grid-template-rows: auto auto 1fr; gap: 16px; align-items: start; }
+.home-top { display: grid; grid-template-columns: 220px minmax(0,1fr) 260px; grid-template-rows: auto auto auto 1fr; gap: 16px; align-items: start; }
 .home-top > .mychar { grid-column: 2; grid-row: 1; }
-.home-top > .topics-group { grid-column: 2; grid-row: 2; }
-.home-top > .warm-group { grid-column: 2; grid-row: 3; }
-.side-left { grid-column: 1; grid-row: 1 / span 3; display: grid; gap: 16px; align-content: start; min-width: 0; }
-.side-col { grid-column: 3; grid-row: 1 / span 3; display: grid; gap: 16px; align-content: start; min-width: 0; }
+.home-top > .myrewards { grid-column: 2; grid-row: 2; }
+.home-top > .topics-group { grid-column: 2; grid-row: 3; }
+.home-top > .warm-group { grid-column: 2; grid-row: 4; }
+.side-left { grid-column: 1; grid-row: 1 / span 4; display: grid; gap: 16px; align-content: start; min-width: 0; }
+.side-col { grid-column: 3; grid-row: 1 / span 4; display: grid; gap: 16px; align-content: start; min-width: 0; }
 .side-col .card, .side-left .card { padding: 16px 14px; }
 .side-col .hw-row { justify-content: flex-start; }
 .side-col .hw-due { font-size: .9rem; }
@@ -400,7 +401,7 @@ button.hw-week:hover { box-shadow: 0 0 0 3px var(--accent-soft); }
 .gp-card h3 { font-size: 1.05rem; }
 .gp-card .hint { margin: 0; }
 .gp-card .req-parts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-@media (max-width: 1000px) { .home-top { grid-template-columns: 1fr; grid-template-rows: none; } .home-top > .mychar, .home-top > .group, .side-col, .side-left { grid-column: 1; grid-row: auto; } }
+@media (max-width: 1000px) { .home-top { grid-template-columns: 1fr; grid-template-rows: none; } .home-top > .mychar, .home-top > .myrewards, .home-top > .group, .side-col, .side-left { grid-column: 1; grid-row: auto; } }
 .req p { margin: 4px 0 2px; font-size: .85rem; font-weight: 700; color: var(--ink) !important; }
 .req ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
 .req li.ok { color: var(--good); }
@@ -416,9 +417,14 @@ button.hw-week:hover { box-shadow: 0 0 0 3px var(--accent-soft); }
 .cr-body p { margin: 0; font-size: .9rem; color: var(--muted); }
 .cr-limit { font-size: .8rem !important; }
 .cr-h { margin-top: 6px; }
+.cr-mine { margin-top: 12px; }
 .vouchers { display: grid; gap: 8px; }
 .voucher { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; border: 2px dashed var(--good); border-radius: 12px; padding: 10px 12px; background: var(--good-soft); }
 .voucher p { margin: 2px 0 0; font-size: .85rem; color: var(--muted); }
+.myrewards { border-color: var(--good); display: grid; gap: 10px; }
+.myrewards .mr-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.myrewards h3 { margin: 0; font: 800 1.15rem var(--display); color: var(--good); }
+.myrewards .hint { margin: 0; font-size: .9rem; }
 .voucher.used { border-color: var(--line); background: var(--card); opacity: .7; }
 .vcode { font: 800 1.15rem var(--display); letter-spacing: .08em; color: var(--ink); }
 .vstate { font-size: .8rem; font-weight: 700; color: var(--good); }
@@ -561,6 +567,7 @@ td.dim, td .dim { color: var(--muted); }
       <div style="min-width:0"><h2 id="mcName">Pip</h2><p class="mc-pts"><b id="mcPts">0</b> points</p></div>
       <div class="hub-actions"><button class="btn secondary" type="button" data-open="char">Customise</button><button class="btn secondary" type="button" data-open="rewards">Class rewards</button></div>
     </section>
+    <section class="card myrewards" id="myRewards" hidden></section>
 
     <div class="group topics-group">
       <p class="label">Year 7 topics</p>
@@ -2237,6 +2244,7 @@ td.dim, td .dim { color: var(--muted); }
     sel.value = store.current;
     if (document.activeElement !== $("stuName")) $("stuName").value = P().name;
     paintName();
+    paintMyRewards();
     document.querySelectorAll("#lenSeg button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.len === store.settings.len));
     Object.keys(SECTIONS).forEach(id => {
       const el = $("best-" + id); if (!el) return;
@@ -4203,6 +4211,7 @@ td.dim, td .dim { color: var(--muted); }
     $("crBox").innerHTML = renderClassRewards(p);
   }
   $("crBox").addEventListener("click", e => {
+    if (e.target.closest("[data-redeem-all]")) { openRedeemAll(); return; }
     const rd = e.target.closest("[data-redeem]"); if (rd) { openRedeem(+rd.dataset.redeem); return; }
     const b = e.target.closest("[data-act=buyreward]"); if (!b || b.disabled) return;
     const p = wallet(), r = CR[b.dataset.id], key = "cr:" + r.id;
@@ -4232,10 +4241,8 @@ td.dim, td .dim { color: var(--muted); }
       h += `<div class="cr-card">${r.icon}<div class="cr-body"><b>${r.name}</b><p>${r.desc}</p>${req}<p class="cr-limit">Once every ${r.every === 7 ? "week" : r.every + " days"}.</p>${reqBtn}</div></div>`;
     });
     h += `</div>`;
-    const mine = p.vouchers.map((v, i) => [v, i]).filter(([v]) => !v.used).reverse();
-    if (mine.length) {
-      h += `<h3 class="cr-h">Your rewards</h3><p class="hint" style="font-size:.9rem">Show your teacher. They enter their code to give you the reward.</p><div class="vouchers">` + mine.map(([v, i]) => `<div class="voucher"><div><b>${esc(CR[v.r] ? CR[v.r].name : v.r)}</b><p>${esc(P().name)} · ${v.auto ? "earned" : "bought"} ${fmtDay(v.d)}</p></div><span class="vcode">${v.code}</span><button class="btn sm" type="button" data-redeem="${i}">Teacher: activate</button></div>`).join("") + `</div>`;
-    }
+    const mine = unusedRewards();
+    if (mine.length) h += `<div class="myrewards cr-mine">${rewardList(mine, "Your rewards")}</div>`;
     return h;
   }
   let shopTab = "char", pendingBuy = null, pendingTimer = null;
@@ -4273,6 +4280,7 @@ td.dim, td .dim { color: var(--muted); }
   }
   $("shopTabs").addEventListener("click", e => { const t = e.target.closest("[data-tab]"); if (t) { shopTab = t.dataset.tab; pendingBuy = null; renderChar(); } });
   $("shopItems").addEventListener("click", e => {
+    if (e.target.closest("[data-redeem-all]")) { openRedeemAll(); return; }
     const rd = e.target.closest("[data-redeem]"); if (rd) { openRedeem(+rd.dataset.redeem); return; }
     const b = e.target.closest("[data-act]"); if (!b || b.disabled) return;
     const p = wallet(), it = ITEM[b.dataset.id];
@@ -4387,11 +4395,34 @@ td.dim, td .dim { color: var(--muted); }
     });
   }
   // Rewards (free or bought) are activated by the teacher entering their code. Then the reward is marked as given and leaves the student's list.
+  // Rewards earned or bought but not given yet: on the home screen and in Class rewards. One teacher code can give every Green Post at once.
+  function unusedRewards() { return (wallet().vouchers || []).map((v, i) => [v, i]).filter(([v]) => !v.used).reverse(); }
+  function rewardList(mine, intro) {
+    const gps = mine.filter(([v]) => v.r === "greenpost").length;
+    return `<div class="mr-head"><h3>${intro}</h3>${gps > 1 ? `<button class="btn" type="button" data-redeem-all>Teacher: activate all ${gps} Green Posts</button>` : ""}</div>
+      <p class="hint">Show your teacher. They enter their code to give you ${mine.length > 1 ? "each reward, or every Green Post at once" : "the reward"}.</p>
+      <div class="vouchers">` + mine.map(([v, i]) => `<div class="voucher"><div><b>${esc(CR[v.r] ? CR[v.r].name : v.r)}</b><p>${esc(P().name)} · ${v.auto ? "earned" : "bought"} ${fmtDay(v.d)}</p></div><span class="vcode">${v.code}</span><button class="btn sm" type="button" data-redeem="${i}">Teacher: activate</button></div>`).join("") + `</div>`;
+  }
+  function paintMyRewards() {
+    const mine = unusedRewards(), box = $("myRewards"); box.hidden = !mine.length;
+    box.innerHTML = mine.length ? rewardList(mine, `🎉 You have ${mine.length} reward${mine.length === 1 ? "" : "s"} to collect`) : "";
+  }
+  const afterGive = () => { if (view === "homeView") renderHome(); else renderRewards(); setTimeout(confetti, 100); };
+  function openRedeemAll() {
+    const gp = unusedRewards().filter(([v]) => v.r === "greenpost").map(([v]) => v); if (!gp.length) return;
+    askTeacherCode(`Activate all ${gp.length} Green Posts`, `Teacher only. Enter the teacher code to give ${esc(P().name)} all ${gp.length} Green Posts at once.`, "Activate all", () => {
+      const t = Date.now(); gp.forEach(v => { v.used = true; v.usedAt = t; }); save(); afterGive();
+    });
+  }
+  $("myRewards").addEventListener("click", e => {
+    if (e.target.closest("[data-redeem-all]")) { openRedeemAll(); return; }
+    const rd = e.target.closest("[data-redeem]"); if (rd) openRedeem(+rd.dataset.redeem);
+  });
   function openRedeem(i) {
     const v = wallet().vouchers[i]; if (!v || v.used) return;
     const name = esc(CR[v.r] ? CR[v.r].name : v.r);
     askTeacherCode(`Activate: ${name}`, `Teacher only. Enter the teacher code to give ${esc(P().name)} this ${name}.`, "Activate", () => {
-      v.used = true; v.usedAt = Date.now(); save(); renderRewards(); setTimeout(confetti, 100);
+      v.used = true; v.usedAt = Date.now(); save(); afterGive();
     });
   }
   // Teacher version: needs the 8-digit code (only a PBKDF2 hash is stored). It shows a Skip button on every question.
