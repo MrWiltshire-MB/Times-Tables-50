@@ -179,6 +179,8 @@ input#answer.right { border-color: var(--good); background: var(--good-soft); }
 .eqchips { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
 .eqchip { text-align: left; padding: 10px 12px; font-size: .95rem; font-weight: 700; line-height: 1.3; }
 .eqchip b { display: block; font-family: var(--display); font-size: 1.05rem; }
+.eqchip.locked { opacity: .75; cursor: not-allowed; border-style: dashed; }
+.eqchip .plock { display: block; margin-top: 4px; font-size: .8rem; font-weight: 700; color: var(--gold); }
 
 /* working lines, preview, review */
 .btn.sm { padding: 7px 14px; font-size: .95rem; border-radius: 10px; }
@@ -2476,8 +2478,22 @@ td.dim, td .dim { color: var(--muted); }
     document.querySelectorAll(NUM_MODES.map(m => `[data-start="${m}"]`).join(",")).forEach(b => { b.disabled = st.locked; });
     document.querySelectorAll(".tile").forEach(t => t.classList.toggle("first", st.locked && t.querySelector(`[data-open="topic:${(topic || {}).id}"]`)));
   }
+  // A part done perfectly twice on its own (20+ questions, 100%) locks until every other part of the chapter has
+  // a round at 80% or more, so students move on to new content. Mixed rounds, homework and tricky ones still use it.
+  // Returns the parts still needed, or null when it isn't locked. The teacher version is never locked.
+  function partLock(tp, id) {
+    if (!tp || teacherMode()) return null;
+    const key = tp.prefix + id, H = P().history;
+    const perfect = H.filter(h => h.m === tp.mode && !h.gift && h.parts && Object.keys(h.parts).length === 1 && h.parts[key] && h.n >= 20 && h.s === h.n).length;
+    if (perfect < 2) return null;
+    const need = tp.subs.map(x => x[0]).filter(o => o !== id && !H.some(h => h.parts && h.parts[tp.prefix + o] && h.parts[tp.prefix + o][1] >= 10 && h.parts[tp.prefix + o][0] / h.parts[tp.prefix + o][1] >= 0.8));
+    return need.length ? need : null;
+  }
   function renderTopic() {
-    const tp = curTopic, sel = store.settings[tp.setting] || (store.settings[tp.setting] = tp.subs.map(x => x[0]));
+    const tp = curTopic;
+    if (!store.settings[tp.setting]) store.settings[tp.setting] = tp.subs.map(x => x[0]);
+    store.settings[tp.setting] = store.settings[tp.setting].filter(id => !partLock(tp, id)); // locked parts can't be picked
+    const sel = store.settings[tp.setting];
     $("topicChapter").textContent = tp.chapter;
     $("topicName").textContent = tp.name;
     $("topicDesc").textContent = tp.desc;
@@ -2492,20 +2508,23 @@ td.dim, td .dim { color: var(--muted); }
     tp.subs.forEach(([id, label]) => {
       const b = document.createElement("button");
       b.type = "button"; b.className = "chip eqchip"; b.id = "sub" + id;
-      const rate = partRate(tp.prefix + id), done = rate !== null && rate >= MASTERED;
+      const rate = partRate(tp.prefix + id), done = rate !== null && rate >= MASTERED, lk = partLock(tp, id);
       const solo = P().history.filter(h => h.m === tp.mode && h.parts && Object.keys(h.parts).length === 1 && h.parts[tp.prefix + id]);
       const bestR = solo.reduce((a, h) => !a || h.s / h.n > a.s / a.n || (h.s / h.n === a.s / a.n && h.n > a.n) ? h : a, null), lastR = solo[solo.length - 1];
       const sc = solo.length ? `<span class="pscore">Best <b>${bestR.s}/${bestR.n}</b> · Last <b>${lastR.s}/${lastR.n}</b></span>` : `<span class="pscore">Not played on its own yet</span>`;
-      b.innerHTML = `<b>${id}${done ? ` <span class="mastered">✓ ${Math.round(rate * 100)}%</span>` : rate !== null ? ` <span class="rate">${Math.round(rate * 100)}%</span>` : ""}</b>${label}${sc}`;
-      b.setAttribute("aria-pressed", sel.includes(id));
+      b.innerHTML = `<b>${id}${done ? ` <span class="mastered">✓ ${Math.round(rate * 100)}%</span>` : rate !== null ? ` <span class="rate">${Math.round(rate * 100)}%</span>` : ""}</b>${label}${sc}`
+        + (lk ? `<span class="plock">🔒 Mastered! Locked until you get 80%+ on ${lk.join(", ")}</span>` : "");
+      if (lk) { b.classList.add("locked"); b.setAttribute("aria-disabled", "true"); }
+      b.setAttribute("aria-pressed", !lk && sel.includes(id));
       b.addEventListener("click", () => {
+        if (lk) return;
         const s = new Set(store.settings[tp.setting]); s.has(id) ? s.delete(id) : s.add(id);
         store.settings[tp.setting] = tp.subs.map(x => x[0]).filter(x => s.has(x)); save(); renderTopic();
       });
       box.appendChild(b);
     });
   }
-  $("topicAll").onclick = () => { store.settings[curTopic.setting] = curTopic.subs.map(x => x[0]); save(); renderTopic(); };
+  $("topicAll").onclick = () => { store.settings[curTopic.setting] = curTopic.subs.map(x => x[0]).filter(id => !partLock(curTopic, id)); save(); renderTopic(); };
   $("topicNone").onclick = () => { store.settings[curTopic.setting] = []; save(); renderTopic(); };
   document.querySelectorAll("#lenSeg button").forEach(b => b.onclick = () => { store.settings.len = +b.dataset.len; save(); renderHome(); });
   // The name on this device can be changed; it is the same student, just renamed.
@@ -2627,6 +2646,10 @@ td.dim, td .dim { color: var(--muted); }
     if (isTopicLocked(TOPICS.find(t => t.mode === m))) { goHome(); return; }
     if (m === "homework" && !teacherMode() && (!hwCurrent() || hwLocked())) { goHome(); return; }
     if (m === "homework" && !hwActive()) { goHome(); return; }
+    { const tp = TOPICS.find(t => t.mode === m); // locked parts (mastered twice) are left out; if that leaves nothing, show why
+      if (tp && store.settings[tp.setting]) { const ok = store.settings[tp.setting].filter(id => !partLock(tp, id));
+        if (!ok.length) { curTopic = tp; renderTopic(); show("topicView"); return; }
+        store.settings[tp.setting] = ok; } }
     mode = m;
     const parts = topicsFor(m);
     lockSnap = m === lockMode() ? { mix: !LOCKS[m].mixRule || parts.length >= MIX_MIN, mastered: new Set(parts.filter(isMastered)) } : null;
@@ -4151,7 +4174,9 @@ td.dim, td .dim { color: var(--muted); }
       const meas = tp.mode === "measurement", n = wallet().vouchers.filter(v => v.r === "greenpost" && v.auto && !v.hwp && (meas ? v.d >= SWITCH_AT : v.d < SWITCH_AT)).length;
       $("gpCount").hidden = !n; $("gpCount").textContent = `(${n})`;
     }
-    const chip = ([id, ok, b]) => `<button type="button" class="req-btn${gpCls(ok, b)}" data-gp="${id}" title="Start a 20-question round of ${id}">${ok ? "✓ " : ""}${id}</button>`;
+    const ltp = TOPICS.find(t => t.mode === lockMode());
+    const chip = ([id, ok, b]) => { const lk = partLock(ltp, id);
+      return `<button type="button" class="req-btn${gpCls(ok, b)}" data-gp="${id}" title="${lk ? `Mastered! Locked until you get 80%+ on ${lk.join(", ")}` : `Start a 20-question round of ${id}`}">${ok ? "✓ " : ""}${id}${lk ? " 🔒" : ""}</button>`; };
     if (ap.sets.length > 1) {
       $("gpText").textContent = `Do a 20-question round of each part on its own. Each set earns its own Green Post. Tap a part to start.`;
       $("gpParts").innerHTML = ap.sets.map(g => { const l = g.subs.filter(x => !x[1]).length;
