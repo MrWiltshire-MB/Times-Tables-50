@@ -1,0 +1,2 @@
+// Test hook: insert this just before '  renderSections();\n  renderHome();' in a COPY of the test file (never in a published file).
+  window.__tt = { checkAutoPost, reviewPostProgress, modelVals, stepInfo, calcLine, modelVals, stepInfo, calcLine, modelVals, stepInfo, calcLine, stepInfo, calcLine, calcTree, stepVals, qs: () => questions, idx: () => idx, P, save, T, take, store: () => store, judgeLine, showQ: q => { questions = [q]; results = []; idx = 0; fixing = false; tries = 0; mode = "measurement"; show("quiz"); ask(); } };

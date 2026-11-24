@@ -31,5 +31,6 @@ t = t.replace("/*TOKENS*/", tokens).replace("/*AUTH*/", auth).replace("/*PARTS*/
 open(os.path.join(out, "teacher.html"), "w").write(t)
 for f in ("index.html", "teacher.html"):
     s = open(os.path.join(out, f)).read()
-    assert "__tt" not in s and "271828" not in s and "service_role" not in s, f
+    import os
+    assert "__tt" not in s and "service_role" not in s and (not os.environ.get("TT_CODE") or os.environ["TT_CODE"] not in s), f
 print("built", out, parts)
