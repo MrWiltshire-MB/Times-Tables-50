@@ -2492,7 +2492,7 @@ td.dim, td .dim { color: var(--muted); }
   function renderTopic() {
     const tp = curTopic;
     if (!store.settings[tp.setting]) store.settings[tp.setting] = tp.subs.map(x => x[0]);
-    store.settings[tp.setting] = store.settings[tp.setting].filter(id => !partLock(tp, id)); // locked parts can't be picked
+    if (store.settings[tp.setting].length < tp.subs.length) store.settings[tp.setting] = store.settings[tp.setting].filter(id => !partLock(tp, id)); // locked parts can't be picked on their own (a whole-topic mix can include them)
     const sel = store.settings[tp.setting];
     $("topicChapter").textContent = tp.chapter;
     $("topicName").textContent = tp.name;
@@ -2515,7 +2515,7 @@ td.dim, td .dim { color: var(--muted); }
       b.innerHTML = `<b>${id}${done ? ` <span class="mastered">✓ ${Math.round(rate * 100)}%</span>` : rate !== null ? ` <span class="rate">${Math.round(rate * 100)}%</span>` : ""}</b>${label}${sc}`
         + (lk ? `<span class="plock">🔒 Mastered! Locked in school hours until you get 80%+ on ${lk.join(", ")}</span>` : "");
       if (lk) { b.classList.add("locked"); b.setAttribute("aria-disabled", "true"); }
-      b.setAttribute("aria-pressed", !lk && sel.includes(id));
+      b.setAttribute("aria-pressed", sel.includes(id));
       b.addEventListener("click", () => {
         if (lk) return;
         const s = new Set(store.settings[tp.setting]); s.has(id) ? s.delete(id) : s.add(id);
@@ -2524,7 +2524,7 @@ td.dim, td .dim { color: var(--muted); }
       box.appendChild(b);
     });
   }
-  $("topicAll").onclick = () => { store.settings[curTopic.setting] = curTopic.subs.map(x => x[0]).filter(id => !partLock(curTopic, id)); save(); renderTopic(); };
+  $("topicAll").onclick = () => { store.settings[curTopic.setting] = curTopic.subs.map(x => x[0]); save(); renderTopic(); };
   $("topicNone").onclick = () => { store.settings[curTopic.setting] = []; save(); renderTopic(); };
   document.querySelectorAll("#lenSeg button").forEach(b => b.onclick = () => { store.settings.len = +b.dataset.len; save(); renderHome(); });
   // The name on this device can be changed; it is the same student, just renamed.
@@ -2647,7 +2647,7 @@ td.dim, td .dim { color: var(--muted); }
     if (m === "homework" && !teacherMode() && (!hwCurrent() || hwLocked())) { goHome(); return; }
     if (m === "homework" && !hwActive()) { goHome(); return; }
     { const tp = TOPICS.find(t => t.mode === m); // locked parts (mastered twice) are left out; if that leaves nothing, show why
-      if (tp && store.settings[tp.setting]) { const ok = store.settings[tp.setting].filter(id => !partLock(tp, id));
+      if (tp && store.settings[tp.setting] && store.settings[tp.setting].length < tp.subs.length) { const ok = store.settings[tp.setting].filter(id => !partLock(tp, id));
         if (!ok.length) { curTopic = tp; renderTopic(); show("topicView"); return; }
         store.settings[tp.setting] = ok; } }
     mode = m;
@@ -2760,6 +2760,7 @@ td.dim, td .dim { color: var(--muted); }
     const chip = ([id, ok, b]) => `<span class="req-btn${gpCls(ok, b)}">${ok ? "✓ " : ""}${id}</span>`;
     let h = `<span class="gm-h">Free Green Post</span>` + ap.sets.map(g => { const left = g.subs.filter(x => !x[1]).length;
       return `<div class="gm-set"><b>${esc(g.label)}</b><span>${left ? `${g.rule.replace(/ \(.*\)/, "")} · ${left} to go` : "✓ Earned!"}</span><span class="req-parts">${g.subs.map(chip).join("")}</span></div>`; }).join("");
+    { const rp = reviewPostProgress(wallet()); h += `<div class="gm-set"><b>50-question review</b><span>${rp.rule.replace(/ \(.*\)/, "")}${rp.best >= 0 ? ` · best ${Math.round(rp.best * 100)}%` : ""}</span></div>`; }
     const hw = hwCurrent();
     if (hw) { const d = hwDone(hw); h += `<div class="gm-set gm-hw"><b>Week ${hw.week} homework</b><span>${d ? `✓ Done (${d.s}/${d.n})` : `Not done yet · due ${fmtDay(hw.due)}`}</span></div>`; }
     box.innerHTML = h;
@@ -4166,8 +4167,23 @@ td.dim, td .dim { color: var(--muted); }
     const subs = sets.flatMap(g => g.subs), done = sets.find(g => g.ok);
     return { sets, subs, ok: !!done, okSet: done || null, again: sets.every(g => g.again), rule: sets[0].rule };
   }
+  // A separate free Green Post for a 50-question review of the whole topic: 90%+ (45/50) the first time, 100% after that.
+  function reviewPostProgress(p) {
+    const tp = TOPICS.find(t => t.mode === lockMode()), meas = tp.mode === "measurement", grp = "review:" + tp.mode;
+    const autos = p.vouchers.filter(v => v.r === "greenpost" && v.auto && v.grp === grp && (!meas || v.d >= SWITCH_AT));
+    const since = autos.reduce((a, v) => Math.max(a, v.d), 0), need = autos.length ? 1 : 0.9;
+    const rounds = p.history.filter(h => h.m === tp.mode && h.d > since && h.n === 50 && h.parts && (h.all || tp.subs.every(([id]) => h.parts[tp.prefix + id])));
+    const best = rounds.reduce((a, h) => Math.max(a, h.s / h.n), -1);
+    return { tp, grp, need, best, ok: best >= need, again: autos.length > 0, rule: need === 1 ? "100% (50/50)" : "90% or more (45/50)" };
+  }
   // Green Post chip colour: green = passed, orange = did a full round at 50%+, red = did a full round under 50%.
   const gpCls = (ok, b) => ok ? " ok" : b >= 0.5 ? " mid" : b >= 0 ? " low" : "";
+  function reviewBlock(tappable) {
+    const rp = reviewPostProgress(wallet()), pct = rp.best >= 0 ? Math.round(rp.best * 100) : null;
+    const state = pct === null ? "Not tried yet" : `Best ${pct}%`;
+    return `<span class="gp-set gp-review"><b>${rp.again ? "Another " : ""}50-question review</b> <small>${rp.rule} on all of ${esc(rp.tp.name)} · ${state}</small>`
+      + (tappable ? `<span class="req-parts"><button type="button" class="req-btn${gpCls(false, rp.best)}" data-gp="review" title="Start a 50-question review of every part">Start review (50)</button></span>` : "") + `</span>`;
+  }
   function paintGreenPost() {
     const tp = TOPICS.find(t => t.mode === lockMode()), ap = autoPostProgress(wallet()), left = ap.subs.filter(x => !x[1]).length;
     { // (1), (2)… in the corner: free Green Posts already earned for the current topic
@@ -4178,18 +4194,18 @@ td.dim, td .dim { color: var(--muted); }
     const chip = ([id, ok, b]) => { const lk = partLock(ltp, id);
       return `<button type="button" class="req-btn${gpCls(ok, b)}" data-gp="${id}" title="${lk ? `Mastered! Locked in school hours until you get 80%+ on ${lk.join(", ")}` : `Start a 20-question round of ${id}`}">${ok ? "✓ " : ""}${id}${lk ? " 🔒" : ""}</button>`; };
     if (ap.sets.length > 1) {
-      $("gpText").textContent = `Do a 20-question round of each part on its own. Each set earns its own Green Post. Tap a part to start.`;
+      $("gpText").textContent = `Do a 20-question round of each part on its own. Each set earns its own Green Post, and so does a 50-question review. Tap to start.`;
       $("gpParts").innerHTML = ap.sets.map(g => { const l = g.subs.filter(x => !x[1]).length;
-        return `<span class="gp-set"><b>${g.label}</b> <small>${g.rule}${l ? ` · ${l} to go` : ""}</small><span class="req-parts">${g.subs.map(chip).join("")}</span></span>`; }).join("");
+        return `<span class="gp-set"><b>${g.label}</b> <small>${g.rule}${l ? ` · ${l} to go` : ""}</small><span class="req-parts">${g.subs.map(chip).join("")}</span></span>`; }).join("") + reviewBlock(true);
       return;
     }
     $("gpText").textContent = left ? `${ap.again ? "Earn another one! " : ""}Get ${ap.rule} on a 20-question round of each ${tp.name} part on its own. ${left} to go. Tap one to start.` : "All done!";
-    $("gpParts").innerHTML = ap.subs.map(chip).join("");
+    $("gpParts").innerHTML = ap.subs.map(chip).join("") + reviewBlock(true);
   }
   $("gpParts").addEventListener("click", e => {
     const b = e.target.closest("[data-gp]"); if (!b) return;
     const tp = TOPICS.find(t => t.mode === lockMode());
-    store.settings[tp.setting] = b.dataset.gp === "review" ? tp.subs.map(x => x[0]) : [b.dataset.gp]; store.settings.len = 20;
+    store.settings[tp.setting] = b.dataset.gp === "review" ? tp.subs.map(x => x[0]) : [b.dataset.gp]; store.settings.len = b.dataset.gp === "review" ? 50 : 20;
     save(); origin = "homeView"; start(lockMode());
   });
   // ---- Teacher version: tick off work a student did (e.g. after their progress was lost) ----
@@ -4250,7 +4266,9 @@ td.dim, td .dim { color: var(--muted); }
   });
   document.addEventListener("click", e => { if (e.target.closest("[data-tick]")) openTick(); });
   function checkAutoPost() {
-    const p = wallet();
+    const p = wallet(), rp = reviewPostProgress(p);
+    if (rp.ok) { const v = { r: "greenpost", d: Date.now(), code: voucherCode(CR.greenpost), used: false, auto: true, grp: rp.grp, grpLabel: `a 50-question ${rp.tp.name} review` };
+      p.vouchers.push(v); save(); return v; }
     const ap = autoPostProgress(p); if (!ap.ok) return null;
     const v = { r: "greenpost", d: Date.now(), code: voucherCode(CR.greenpost), used: false, auto: true };
     if (ap.okSet.id) { v.grp = ap.okSet.id; v.grpLabel = ap.okSet.label; }
@@ -4281,7 +4299,8 @@ td.dim, td .dim { color: var(--muted); }
     const now = Date.now();
     const open = (p.earned || 0) >= CR_UNLOCK;
     let h = `<p class="hint cr-intro">Spend points on real rewards in class. Buy one, then show your teacher.</p>`;
-    const ap = autoPostProgress(p);
+    const ap = autoPostProgress(p), rp = reviewPostProgress(p);
+    h += `<div class="lock-note"><p><b>Free Green Post for a review${rp.again ? " (next one)" : ""}:</b> get ${rp.rule} on a 50-question review of all of ${esc(rp.tp.name)}.${rp.again ? "" : " After the first one, the next needs 100%."}</p></div>`;
     h += ap.sets.map(g => `<div class="lock-note"><p><b>Free Green Post${ap.sets.length > 1 ? ` for ${g.label}` : ""}${g.again ? " (next one)" : ""}:</b> get ${g.rule} on a 20-question round of each part on its own.${g.again ? "" : " After the first one, the next needs 100%."}</p><span class="req-parts">${g.subs.map(([id, ok, b]) => `<span class="req-btn${gpCls(ok, b)}">${ok ? "✓ " : ""}${id}</span>`).join("")}</span></div>`).join("");
     if (!open) h += `<div class="lock-note"><p><b>Class rewards open once you've earned ${CR_UNLOCK.toLocaleString("en-AU")} points in total.</b> ${(p.earned || 0).toLocaleString("en-AU")} / ${CR_UNLOCK.toLocaleString("en-AU")}</p><div class="lock-bar" aria-hidden="true"><span style="width:${Math.min(100, (p.earned || 0) / CR_UNLOCK * 100)}%"></span></div></div>`;
     h += `<div class="cr-grid">`;
