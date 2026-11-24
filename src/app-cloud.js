@@ -11,14 +11,14 @@
     store = load(); myRev = readRev();
     if (!histLen(store) && histLen(d)) store = Object.assign(load(), d); // this browser can't save: use it from memory
   }
-  // Status line (bottom left)
-  const bar = document.createElement("div"); bar.className = "cl-bar"; bar.hidden = true; document.body.appendChild(bar);
+  // Status line and Sign out: top right of the page, above the header (part of the page, not floating)
+  const bar = document.createElement("div"); bar.className = "cl-bar"; bar.hidden = true;
+  { const hdr = document.querySelector("header"); if (hdr) hdr.parentNode.insertBefore(bar, hdr); else document.body.appendChild(bar); }
   const st = document.createElement("style");
-  st.textContent = `.cl-bar { position: fixed; z-index: 30; left: 10px; bottom: 8px; font: .8rem var(--body); color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: calc(100vw - 220px); }
+  st.textContent = `.cl-bar { display: flex; justify-content: flex-end; gap: 8px; align-items: center; flex-wrap: wrap; margin: -8px 0 -6px; font: .8rem var(--body); color: var(--muted); }
 .cl-bar b { color: var(--ink); } .cl-bar .ok { color: var(--good); } .cl-bar .warn { color: var(--bad); }
 .cl-bar button { background: none; border: 0; padding: 0; font: 700 .8rem var(--body); color: var(--accent); text-decoration: underline; cursor: pointer; }
 body:has(#quiz:not([hidden])) .cl-bar { display: none; }
-@media (max-width: 700px) { .cl-bar { position: static; justify-content: center; max-width: none; padding: 8px 0 40px; } }
 .cl-wait { position: fixed; inset: 0; z-index: 190; display: grid; place-items: center; background: var(--paper); font: 800 1.2rem var(--display); color: var(--ink); }`;
   document.head.appendChild(st);
   let cstate = "ok";
