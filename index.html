@@ -3831,8 +3831,8 @@ td.dim, td .dim { color: var(--muted); }
     penguin: { name: "Waddles", col: "#2d3142", dark: "#151824", price: 2500 },
     bunny: { name: "Clover", col: "#f3f0ea", dark: "#b9b2a5", price: 2500 },
     alien: { name: "Zib", col: "#b48cf2", dark: "#6d47b8", price: 4000 },
-    flame: { name: "Blaze", col: "#ff8a3d", dark: "#c4441a", price: 2500 },
-    water: { name: "Splash", col: "#5cb8f0", dark: "#2a78b8", price: 2500 }
+    flame: { name: "Blaze", col: "#ff6a2b", dark: "#c4381a", price: 2500 },
+    water: { name: "Splash", col: "#4aa8ea", dark: "#1f6fb2", price: 2500 }
   });
   // ---- challenge-only items (mostly speed targets) ----
   Object.assign(ART, {
@@ -3938,7 +3938,42 @@ td.dim, td .dim { color: var(--muted); }
   ART.yellowbelt = clothBelt("#f5c542", "#a07a10");
   ART.leatherbelt = u => `<g clip-path="url(#b${u})"><rect x="50" y="155" width="100" height="10" fill="#7a4a24"/><path d="M50 157 H150 M50 163 H150" stroke="#a8703f" stroke-width="1" stroke-dasharray="3 2"/></g>` +
     `<rect x="91" y="152" width="18" height="16" rx="3" fill="none" stroke="#c9a227" stroke-width="3.5"/><path d="M100 155 V165" stroke="#c9a227" stroke-width="2.5" stroke-linecap="round"/>`;
+  // Blaze (flame) and Splash (water) are drawn from layered shapes instead of the standard round body and head.
+  // Layers: the outline shape, then smaller copies of it inside (scaled about a point) for the glow / lighter water.
+  const layer = (d, fill, k, cx, cy, more = "") => `<path d="${d}" fill="${fill}"${k === 1 ? "" : ` transform="translate(${cx} ${cy}) scale(${k}) translate(${-cx} ${-cy})"`}${more}/>`;
+  const mirror = svg => `<g transform="translate(200 0) scale(-1 1)">${svg}</g>`;
+  const ELEM = {
+    flame: {
+      body: "M100 192 C68 194 52 176 56 154 C58 140 52 130 56 116 C62 124 66 128 70 130 C70 120 74 112 80 108 C80 116 84 120 88 120 C90 112 96 106 100 104 C104 106 110 112 112 120 C116 120 120 116 120 108 C126 112 130 120 130 130 C134 128 138 124 144 116 C148 130 142 140 144 154 C148 176 132 194 100 192Z",
+      arm: "M58 170 C44 166 42 148 48 132 C50 140 54 144 56 144 C54 134 56 124 62 118 C62 128 66 134 70 142 C74 154 70 168 58 170Z",
+      base: "M62 196 C62 186 68 180 72 176 C72 184 76 186 80 188 C80 180 86 174 92 170 C92 178 96 184 100 186 C104 184 108 178 108 170 C114 174 120 180 120 188 C124 186 128 184 128 176 C132 180 138 186 138 196Z",
+      head: "M58 90 C54 72 60 58 68 46 C68 56 72 60 76 62 C74 46 80 30 92 16 C92 30 96 38 100 42 C102 28 110 16 122 8 C118 24 120 36 126 44 C130 38 132 32 132 24 C142 38 148 56 142 74 C148 96 136 124 100 124 C66 124 54 108 58 90Z",
+      fills: ["#ff9f2e", "#ffd23f"], drops: ""
+    },
+    water: {
+      body: "M100 192 C70 192 54 176 58 152 C60 136 68 124 78 118 Q88 112 100 116 Q112 112 122 118 C132 124 140 136 142 152 C146 176 130 192 100 192Z",
+      arm: "M58 170 C42 166 40 146 48 134 C54 126 64 128 66 136 C60 136 56 142 60 148 C66 154 72 164 58 170Z",
+      base: "M50 198 C54 186 60 182 64 190 C68 176 76 174 80 188 C86 172 94 170 100 186 C106 170 114 172 120 188 C124 174 132 176 136 190 C140 182 146 186 150 198Z",
+      head: "M58 86 C56 56 78 36 100 4 C104 22 110 30 122 34 C114 38 112 44 118 50 C134 58 144 70 142 88 C142 110 124 124 100 124 C76 124 58 110 58 86Z",
+      fills: ["#7cc7f5", "#b9e3fb"],
+      drops: [[40, 112, 1], [164, 104, .9], [30, 160, .7], [172, 150, .8], [150, 30, .8], [48, 36, .7]].map(([x, y, k]) => `<path d="M${x} ${y - 9 * k} C${x + 6 * k} ${y - 2 * k} ${x + 6 * k} ${y + 4 * k} ${x} ${y + 5 * k} C${x - 6 * k} ${y + 4 * k} ${x - 6 * k} ${y - 2 * k} ${x} ${y - 9 * k}Z" fill="#7cc7f5" stroke="#1f6fb2" stroke-width="1.5"/>`).join("")
+    }
+  };
+  function elemBody(id, u) {
+    const c = CHARS[id], e = ELEM[id], arm = layer(e.arm, c.col, 1, 0, 0, ` stroke="${c.dark}" stroke-width="3" stroke-linejoin="round"`) + layer(e.arm, e.fills[0], .6, 58, 160);
+    return e.drops + layer(e.base, c.col, 1, 0, 0, ` stroke="${c.dark}" stroke-width="3" stroke-linejoin="round"`) + layer(e.base, e.fills[0], .7, 100, 196) +
+      `<ellipse cx="82" cy="190" rx="14" ry="7" fill="${c.dark}"/><ellipse cx="118" cy="190" rx="14" ry="7" fill="${c.dark}"/>` + arm + mirror(arm) +
+      `<defs><clipPath id="b${u}"><ellipse cx="100" cy="152" rx="42" ry="36"/></clipPath></defs>` +
+      layer(e.body, c.col, 1, 0, 0, ` stroke="${c.dark}" stroke-width="3" stroke-linejoin="round"`) + layer(e.body, e.fills[0], .72, 100, 170) + layer(e.body, e.fills[1], .42, 100, 176);
+  }
+  function elemHead(id, top) {
+    const c = CHARS[id], e = ELEM[id], d = top ? e.head : "M56 80 A44 44 0 1 1 144 80 A44 44 0 1 1 56 80Z";
+    let h = layer(d, c.col, 1, 0, 0, ` stroke="${c.dark}" stroke-width="3" stroke-linejoin="round"`) + layer(d, e.fills[0], .74, 100, 104) + layer(d, e.fills[1], .46, 100, 110);
+    if (id === "water") h += `<path d="M68 66 Q72 52 84 46" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".75"/><circle cx="66" cy="78" r="3.5" fill="#fff" opacity=".7"/>`;
+    return h;
+  }
   function charBody(id, u) {
+    if (ELEM[id]) return elemBody(id, u);
     const c = CHARS[id] || CHARS.pip;
     let s = "";
     if (id === "rex") s += `<path d="M136 168 Q178 172 190 138 Q172 160 136 152Z" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/>`;
@@ -3947,7 +3982,7 @@ td.dim, td .dim { color: var(--muted); }
     s += `<ellipse cx="82" cy="190" rx="16" ry="9" fill="${foot}"/><ellipse cx="118" cy="190" rx="16" ry="9" fill="${foot}"/>`;
     s += `<ellipse cx="58" cy="150" rx="11" ry="17" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/><ellipse cx="142" cy="150" rx="11" ry="17" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/>`;
     s += `<defs><clipPath id="b${u}"><ellipse cx="100" cy="152" rx="42" ry="36"/></clipPath></defs>`;
-    s += `<ellipse cx="100" cy="152" rx="42" ry="36" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/>${id === "penguin" ? `<ellipse cx="100" cy="158" rx="30" ry="27" fill="#fff"/>` : `<ellipse cx="100" cy="160" rx="24" ry="19" fill="${id === "flame" ? "#ffd23f" : "#fff"}" opacity="${id === "flame" ? ".7" : ".35"}"/>`}`;
+    s += `<ellipse cx="100" cy="152" rx="42" ry="36" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/>${id === "penguin" ? `<ellipse cx="100" cy="158" rx="30" ry="27" fill="#fff"/>` : `<ellipse cx="100" cy="160" rx="24" ry="19" fill="#fff" opacity=".35"/>`}`;
     return s;
   }
   // Glasses: clear ones (glasses, goggles, monocle...) show small standard eyes that always fit inside the lenses;
@@ -3964,12 +3999,10 @@ td.dim, td .dim { color: var(--muted); }
     if (id === "koala") s += `<circle cx="58" cy="50" r="22" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/><circle cx="142" cy="50" r="22" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/><circle cx="58" cy="50" r="12" fill="#e9d8dc"/><circle cx="142" cy="50" r="12" fill="#e9d8dc"/>`;
     if (id === "bunny" && top) s += `<ellipse cx="82" cy="24" rx="11" ry="28" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/><ellipse cx="118" cy="24" rx="11" ry="28" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/><ellipse cx="82" cy="26" rx="5" ry="18" fill="#f7b6c2"/><ellipse cx="118" cy="26" rx="5" ry="18" fill="#f7b6c2"/>`;
     if (id === "alien" && top) s += `<path d="M84 42 L72 14 M116 42 L128 14" stroke="${c.dark}" stroke-width="4"/><circle cx="72" cy="12" r="6" fill="#7fffb0"/><circle cx="128" cy="12" r="6" fill="#7fffb0"/>`;
-    if (id === "flame" && top) s += `<path d="M62 70 Q54 40 72 22 Q72 40 84 44 Q80 14 100 -2 Q104 24 116 32 Q118 16 132 12 Q124 34 140 50 Q146 62 138 74Z" fill="${c.dark}"/><path d="M72 66 Q68 46 78 34 Q80 48 90 50 Q88 28 100 14 Q104 34 114 40 Q116 30 124 26 Q120 42 130 56 Z" fill="#ffd23f"/>`;
-    if (id === "water" && top) s += `<path d="M64 60 Q86 34 100 2 Q114 34 136 60Z" fill="${c.col}" stroke="${c.dark}" stroke-width="3" stroke-linejoin="round"/>`;
     if (id === "bolt" && top) s += `<line x1="100" y1="38" x2="100" y2="16" stroke="${c.dark}" stroke-width="4"/><circle cx="100" cy="13" r="7" fill="#ff6b6b"/>`;
     if (id === "bolt") s += `<rect x="48" y="66" width="10" height="20" rx="3" fill="${c.dark}"/><rect x="142" y="66" width="10" height="20" rx="3" fill="${c.dark}"/>`;
     s += id === "bolt" ? `<rect x="56" y="36" width="88" height="82" rx="24" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/>`
-      : `<circle cx="100" cy="80" r="44" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/>`;
+      : ELEM[id] ? elemHead(id, top) : `<circle cx="100" cy="80" r="44" fill="${c.col}" stroke="${c.dark}" stroke-width="3"/>`;
     if (id === "bolt") s += eyes(`<rect x="76" y="66" width="18" height="16" rx="4" fill="#1f2433"/><rect x="106" y="66" width="18" height="16" rx="4" fill="#1f2433"/><rect x="80" y="70" width="6" height="6" fill="#7fe3ff"/><rect x="110" y="70" width="6" height="6" fill="#7fe3ff"/>`) + `<rect x="84" y="94" width="32" height="8" rx="4" fill="${c.dark}"/>`;
     else if (id === "alien") {
       s += eyes(`<ellipse cx="84" cy="78" rx="11" ry="14" fill="#1f2433"/><ellipse cx="116" cy="78" rx="11" ry="14" fill="#1f2433"/><circle cx="88" cy="72" r="3" fill="#fff"/><circle cx="120" cy="72" r="3" fill="#fff"/>`) + `<path d="M94 102 Q100 106 106 102" fill="none" stroke="#1f2433" stroke-width="3" stroke-linecap="round"/>`;
@@ -3981,8 +4014,6 @@ td.dim, td .dim { color: var(--muted); }
       s += `<path d="M90 96 Q100 106 110 96" fill="none" stroke="#1f2433" stroke-width="3" stroke-linecap="round"/>`;
       if (id === "whiskers") s += `<path d="M96 88 L104 88 L100 93Z" fill="#e57b8f"/><path d="M60 88 l18 2 M60 96 l18 -2 M140 88 l-18 2 M140 96 l-18 -2" stroke="${c.dark}" stroke-width="2"/>`;
       if (id === "koala") s += `<ellipse cx="100" cy="90" rx="11" ry="13" fill="#3a3f47"/>`;
-      if (id === "flame") s += `<path d="M70 60 Q76 48 86 46" fill="none" stroke="#ffd23f" stroke-width="4" stroke-linecap="round" opacity=".8"/>`;
-      if (id === "water") s += `<ellipse cx="74" cy="58" rx="6" ry="10" transform="rotate(30 74 58)" fill="#fff" opacity=".55"/><circle cx="66" cy="74" r="3" fill="#fff" opacity=".5"/>`;
       if (id === "bunny") s += `<path d="M96 88 L104 88 L100 93Z" fill="#ff8fa3"/><rect x="96" y="100" width="8" height="7" rx="1" fill="#fff" stroke="#ccc"/>`;
       if (id === "rex") s += `<circle cx="94" cy="88" r="1.8" fill="${c.dark}"/><circle cx="106" cy="88" r="1.8" fill="${c.dark}"/>`;
     }
