@@ -4904,11 +4904,11 @@ td.dim, td .dim { color: var(--muted); }
     store = load(); myRev = readRev();
     if (!histLen(store) && histLen(d)) store = Object.assign(load(), d); // this browser can't save: use it from memory
   }
-  // Status line and Sign out: top right of the page, above the header (part of the page, not floating)
+  // Status line and Sign out: in the header's top-right row, beside the theme and Progress buttons
   const bar = document.createElement("div"); bar.className = "cl-bar"; bar.hidden = true;
-  { const hdr = document.querySelector("header"); if (hdr) hdr.parentNode.insertBefore(bar, hdr); else document.body.appendChild(bar); }
+  { const hr = document.querySelector(".hdr-right"); if (hr) hr.prepend(bar); else document.body.appendChild(bar); }
   const st = document.createElement("style");
-  st.textContent = `.cl-bar { display: flex; justify-content: flex-end; gap: 8px; align-items: center; flex-wrap: wrap; margin: -8px 0 -6px; font: .8rem var(--body); color: var(--muted); }
+  st.textContent = `.cl-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-right: 4px; font: .8rem var(--body); color: var(--muted); }
 .cl-bar b { color: var(--ink); } .cl-bar .ok { color: var(--good); } .cl-bar .warn { color: var(--bad); }
 .cl-bar button { background: none; border: 0; padding: 0; font: 700 .8rem var(--body); color: var(--accent); text-decoration: underline; cursor: pointer; }
 body:has(#quiz:not([hidden])) .cl-bar { display: none; }
