@@ -20,6 +20,9 @@ and this file.
 - `tests/checker/` — Playwright tests for the working-line checker and app features. They need a harness copy of the
   test file with `tests/checker/HARNESS-HOOK.js` inserted (never in a published file). The teacher code comes from the
   `TT_CODE` environment variable.
+  Put `<meta charset="utf-8">` at the top of the harness copy: opened from disk, the browser can otherwise guess the
+  wrong encoding (× shows as Ã—) and lines fail to read. Don't add it to the published file: claude.ai rejects a file
+  that doesn't start with HTML it recognises, and serves it as UTF-8 anyway.
 - `tests/github/` — tests for the GitHub version against a fake Supabase (`mock.py`).
 
 ## Workflow ("ptl": push to live, the default for every change)

@@ -238,6 +238,8 @@ input#answer.right { border-color: var(--good); background: var(--good-soft); }
 .req-btn.ok:hover { background: var(--good); color: var(--card); }
 .req-btn.mid { border-color: #e07b00; background: #fff0dc; color: #b35f00; }
 .req-btn.mid:hover { background: #e07b00; color: var(--card); }
+.req-btn.gold { border-color: #c99a17; background: #f5c542; color: #4a3200; }
+.req-btn.gold:hover { background: #c99a17; color: #fff; }
 .req-btn.low { border-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
 .req-btn.low:hover { background: var(--bad); color: var(--card); }
 :root[data-theme="dark"] .req-btn.mid { background: #3a2610; color: #ffab4a; border-color: #ffab4a; }
@@ -2758,7 +2760,7 @@ td.dim, td .dim { color: var(--muted); }
   function paintGpMini() {
     const box = $("gpMini"); if (!box) return;
     const tp = TOPICS.find(t => t.mode === lockMode()), ap = autoPostProgress(wallet());
-    const chip = ([id, ok, b]) => `<span class="req-btn${gpCls(ok, b)}">${ok ? "✓ " : ""}${id}</span>`;
+    const chip = ([id, ok, b, gold]) => `<span class="req-btn${gpCls(ok, b, gold)}">${ok || gold ? "✓ " : ""}${id}</span>`;
     let h = `<span class="gm-h">Free Green Post</span>` + ap.sets.map(g => { const left = g.subs.filter(x => !x[1]).length;
       return `<div class="gm-set"><b>${esc(g.label)}</b>${gpBadge(g.earned)}<span>${left ? `${g.again ? "Next one: " : ""}${g.rule.replace(/ \(.*\)/, "")} · ${left} to go` : "✓ Earned!"}</span><span class="req-parts">${g.subs.map(chip).join("")}</span></div>`; }).join("");
     { const rp = reviewPostProgress(wallet()); h += `<div class="gm-set"><b>50-question review</b>${gpBadge(rp.earned)}<span>${rp.rule.replace(/ \(.*\)/, "")}${rp.best >= 0 ? ` · best ${Math.round(rp.best * 100)}%` : ""}</span></div>`; }
@@ -4265,7 +4267,7 @@ td.dim, td .dim { color: var(--muted); }
       const since = autos.reduce((a, v) => Math.max(a, v.d), 0), need = autos.length ? 1 : 0.8;
       const tries = p.history.filter(h => h.m === tp.mode && h.d > since && h.parts && h.n === 20 && Object.keys(h.parts).length === 1);
       const best = x => tries.filter(h => h.parts[tp.prefix + x]).reduce((a, h) => Math.max(a, h.s / h.n), -1);
-      const subs = parts.map(x => { const b = best(x); return [x, b >= need, b]; });
+      const subs = parts.map(x => { const b = best(x); return [x, b >= need, b, autos.length > 0]; });
       return { id, label: id ? `${parts[0]}–${parts[parts.length - 1]}` : tp.name, subs, ok: subs.every(x => x[1]), again: autos.length > 0, earned: autos.length,
         rule: need === 1 ? "100% (20/20)" : "80% or more (16/20)" };
     });
@@ -4281,21 +4283,22 @@ td.dim, td .dim { color: var(--muted); }
     const best = rounds.reduce((a, h) => Math.max(a, h.s / h.n), -1);
     return { tp, grp, need, best, ok: best >= need, again: autos.length > 0, earned: autos.length, rule: need === 1 ? "100% (50/50)" : "90% or more (45/50)" };
   }
-  // Green Post chip colour: green = passed, orange = did a full round at 50%+, red = did a full round under 50%.
-  const gpCls = (ok, b) => ok ? " ok" : b >= 0.5 ? " mid" : b >= 0 ? " low" : "";
+  // Green Post chip colour: green = passed, gold = its set's Green Post is already earned (done once, working on the next),
+  // orange = did a full round at 50%+, red = did a full round under 50%.
+  const gpCls = (ok, b, gold) => ok ? " ok" : gold ? " gold" : b >= 0.5 ? " mid" : b >= 0 ? " low" : "";
   // Solid green badge on a set (or the review) once its free Green Post has been earned, so it's clear it was completed.
   const gpBadge = n => n ? `<span class="gp-earned">✓ Green Post earned${n > 1 ? ` ×${n}` : ""}</span>` : "";
   function reviewBlock(tappable) {
     const rp = reviewPostProgress(wallet()), pct = rp.best >= 0 ? Math.round(rp.best * 100) : null;
     const state = pct === null ? "Not tried yet" : `Best ${pct}%`;
     return `<span class="gp-set gp-review"><b>50-question review</b>${gpBadge(rp.earned)} <small>${rp.again ? "Next one: " : ""}${rp.rule} on all of ${esc(rp.tp.name)} · ${state}</small>`
-      + (tappable ? `<span class="req-parts"><button type="button" class="req-btn${gpCls(false, rp.best)}" data-gp="review" title="Start a 50-question review of every part">Start review (50)</button></span>` : "") + `</span>`;
+      + (tappable ? `<span class="req-parts"><button type="button" class="req-btn${gpCls(false, rp.best, rp.earned > 0)}" data-gp="review" title="Start a 50-question review of every part">Start review (50)</button></span>` : "") + `</span>`;
   }
   function paintGreenPost() {
     const tp = TOPICS.find(t => t.mode === lockMode()), ap = autoPostProgress(wallet()), left = ap.subs.filter(x => !x[1]).length;
     const ltp = TOPICS.find(t => t.mode === lockMode());
-    const chip = ([id, ok, b]) => { const lk = partLock(ltp, id);
-      return `<button type="button" class="req-btn${gpCls(ok, b)}" data-gp="${id}" title="${lk ? `Mastered! Locked in school hours until you get 80%+ on ${lk.join(", ")}` : `Start a 20-question round of ${id}`}">${ok ? "✓ " : ""}${id}${lk ? " 🔒" : ""}</button>`; };
+    const chip = ([id, ok, b, gold]) => { const lk = partLock(ltp, id);
+      return `<button type="button" class="req-btn${gpCls(ok, b, gold)}" data-gp="${id}" title="${lk ? `Mastered! Locked in school hours until you get 80%+ on ${lk.join(", ")}` : `Start a 20-question round of ${id}`}">${ok || gold ? "✓ " : ""}${id}${lk ? " 🔒" : ""}</button>`; };
     if (ap.sets.length > 1) {
       $("gpText").textContent = `Do a 20-question round of each part on its own. Each set earns its own Green Post, and so does a 50-question review. Tap to start.`;
       $("gpParts").innerHTML = ap.sets.map(g => { const l = g.subs.filter(x => !x[1]).length;
