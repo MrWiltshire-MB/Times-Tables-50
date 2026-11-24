@@ -3074,16 +3074,25 @@ td.dim, td .dim { color: var(--muted); }
     // Constants of the method (2, ½, 360, 1000…) are not steps on their own.
     const derived = leaves.filter(l => Math.abs(l - Math.PI) > 1e-9 && !qn.some(n => nearV(n, l)) && !(l <= 4 && Number.isInteger(l * 2)) && !(/^m10[AEKL]$/.test(q.t) ? [360, 10, 100, 1000, 10000, 1e6] : [360]).includes(l));
     // Question amounts with their units, written in the other units of the same kind
-    const txt = ((q.html || "").replace(/<[^>]+>/g, " ") + " " + (q.sub || "")).replace(/(\d),(\d{3})/g, "$1$2"), leafReps = [];
-    txt.replace(/(\d+(?:\.\d+)?)\s*(mm|cm|km|mL|ML|kL|mg|kg|ha|m|L|g|t)(²|³)?(?![A-Za-z²³])/g, (m0, v, u, e) => { unitFactors(u + (e || "")).forEach(k => leafReps.push(+v * k)); return m0; });
-    if (q.dia && q.dia.u) (JSON.stringify(q.dia).match(/\d+(\.\d+)?/g) || []).forEach(v => unitFactors(q.dia.u).forEach(k => leafReps.push(+v * k)));
+    const txt = ((q.html || "").replace(/<[^>]+>/g, " ") + " " + (q.sub || "")).replace(/(\d),(\d{3})/g, "$1$2"), leafReps = [], repSrc = [];
+    // each converted amount remembers the amount it came from (4 m → 4000 mm comes from 4)
+    const addRep = (v, k) => { leafReps.push(v * k); repSrc.push([v * k, v]); };
+    txt.replace(/(\d+(?:\.\d+)?)\s*(mm|cm|km|mL|ML|kL|mg|kg|ha|m|L|g|t)(²|³)?(?![A-Za-z²³])/g, (m0, v, u, e) => { unitFactors(u + (e || "")).forEach(k => addRep(+v, k)); return m0; });
+    if (q.dia && q.dia.u) (JSON.stringify(q.dia).match(/\d+(\.\d+)?/g) || []).forEach(v => unitFactors(q.dia.u).forEach(k => addRep(+v, k)));
     // π, π/2 and π/4 on their own aren't worked-out values (they come from ½ × π × …, not from the question's numbers)
     const piBit = v => [0.25, 0.5, 1].some(k => Math.abs(v - k * Math.PI) < 1e-9) && !qn.some(n => [0.5, 1, 2].some(k => Math.abs(k * n * Math.PI - v) < 1e-9));
     // "Use π ≈ 22/7" questions: the same working with π itself is a fair step too (C = π × 28, then 22/7 × 28)
     (q.alt || []).forEach(a => { const ac = calcLine(a), at = ac && calcTree(ac.norm.split("=")[0]); if (at) stepVals(at, out, leaves, given.map(Number)); }); // other correct methods
     if (APPROX_PI.test(q.html || "")) { const pc = calcLine(q.calc.replace(/22\s*\/\s*7|3\.14/g, "π")), pt = pc && calcTree(pc.norm.split("=")[0]); if (pt) stepVals(pt, out, [], given.map(Number)); }
     const scale = /^m10[AEKL]$/.test(q.t), vals = out.map(Math.abs).filter(v => !piBit(v)), af = unitFactors(q.suf);
-    return stepCache[sk] = { terms, vals, leaves: qn, mleaves: leaves, derived, scale, leafReps,
+    // Converting units is only a step when the question mixes units or asks for a different one (not on a sail measured all in m)
+    const uBase = u => String(u || "").replace(/[²³23]$/, ""), units = new Set();
+    txt.replace(/\d\s*(mm|cm|km|mL|ML|kL|mg|kg|ha|m|L|g|t)(²|³)?(?![A-Za-z²³])/g, (m0, u) => { units.add(u); return m0; });
+    if (q.dia && q.dia.u) units.add(uBase(q.dia.u));
+    const WORDU = { millimetre: "mm", centimetre: "cm", kilometre: "km", metre: "m", millilitre: "mL", kilolitre: "kL", litre: "L", milligram: "mg", kilogram: "kg", gram: "g", tonne: "t", hectare: "ha" };
+    (txt.toLowerCase().match(/(milli|centi|kilo)?(metre|litre|gram)|tonne|hectare/g) || []).forEach(w => units.add(WORDU[w] || WORDU[w.replace(/s$/, "")]));
+    const needConv = units.size > 1 || (!!q.suf && units.size > 0 && !units.has(uBase(q.suf)));
+    return stepCache[sk] = { terms, vals, leaves: qn, mleaves: leaves, derived, scale, leafReps, repSrc, needConv,
       // only whole amounts can be rewritten in another unit: the answer, and sums (3 kg + 1.5 kg in grams), not part-products
       valsScaled: scale ? [Math.abs(q.ans), ...(out.sums || [])].flatMap(v => af.map(k => v * k)) : [], ansScaled: af.map(k => Math.abs(q.ans) * k) };
   }
@@ -3349,12 +3358,14 @@ td.dim, td .dim { color: var(--muted); }
       if (otherUnit && sufRe && sufRe.test(raw.trim())) return UNIT;
       if (!c.hasOp) {
         if (inSet(v0, si.vals) || prevVals.some(p => nearV(v0, p))) return stepCalc();          // a result on its own line, e.g. 780
-        if (inSet(v0, si.derived) || (inSet(v0, si.leafReps) && !inSet(v0, si.leaves))) return stepCalc(); // a question amount converted, e.g. 90 for 0.9 m
+        if (inSet(v0, si.derived) || (si.needConv && inSet(v0, si.leafReps) && !inSet(v0, si.leaves))) return stepCalc(); // a question amount converted, e.g. 90 for 0.9 m
         if (inSet(v0, si.leaves) || inSet(v0, si.mleaves)) return SAY("That's just a number from the question. Write a calculation with it.");
         return otherUnit ? UNIT : WRONG;
       }
       const qDiffs = qPairs;
-      const valid = inSet(v0, si.vals) || inSet(v0, si.valsScaled) || inSet(v0, si.derived) || (inSet(v0, si.leafReps) && !inSet(v0, si.leaves))
+      // a converted amount only counts when the line converts that amount (4 × 1000 for 4 m in mm), not 40 × 100 landing on 4000
+      const convOf = si.needConv && si.repSrc.some(([v, a]) => nearV(v0, v) && c.lits.some(n => nearV(n, a)));
+      const valid = inSet(v0, si.vals) || inSet(v0, si.valsScaled) || inSet(v0, si.derived) || (convOf && !inSet(v0, si.leaves))
         || (inSet(v0, qDiffs) && !inSet(v0, si.leaves)); // a missing side worked out: 11 − 6 = 5
       if (valid && !c.lits.length) return SAY("Write a calculation with numbers from the question.");
       if (valid) return c.lits.every(known) ? stepCalc() : c.lits.some(n => n === 0) ? WRONG : USE;
