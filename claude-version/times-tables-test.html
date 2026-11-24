@@ -2979,7 +2979,7 @@ td.dim, td .dim { color: var(--muted); }
     return v !== null && i === s.length && isFinite(v) ? v : null;
   }
   function calcLine(raw) {
-    let s = String(raw).toLowerCase().replace(/\s+/g, "").replace(/[≈≅]/g, "=").replace(/^[a-z]*=/, "").replace(/\$/g, "").replace(/[−–]/g, "-").replace(/[×*·]/g, "*").replace(/÷/g, "/")
+    let s = String(raw).toLowerCase().replace(/\s+/g, "").replace(/[≈≅]/g, "=").replace(/^(?:[a-z]+\d*)?=/, "").replace(/\$/g, "").replace(/[−–]/g, "-").replace(/[×*·]/g, "*").replace(/÷/g, "/")
       .replace(/π|pi/g, "p").replace(/½/g, "(1/2)").replace(/¼/g, "(1/4)").replace(/,/g, "")
       .replace(/°c|°|days?|hours?|boxes/g, "").replace(/(mm|cm|km|ml|kl|mg|kg|ha|m|l|g|t)(²|³|2|3)?(?![a-z])/g, "").replace(/x/g, "*").replace(/²/g, "^2").replace(/³/g, "^3");
     if (!s || /[^\d.+\-*/()^p=]/.test(s)) return null;
@@ -3283,7 +3283,19 @@ td.dim, td .dim { color: var(--muted); }
     if (places > dp) return { kind: "say", msg: `Now round your answer to ${word}.` };
     return { kind: "wrong", msg: `Check your rounding. Round to ${word}.` };
   }
+  // Names given to earlier lines (a = 10 × 8, A1 = …, rectangle = …) can be used later: "a + b" means 80 + 20.
+  const LABEL = /^\s*([a-z]+\d*)\s*[=≈]\s*/i;
+  function useLabels(raw, prevLines) {
+    const defs = {};
+    prevLines.forEach(l => { const m = String(l).match(LABEL), c = m && calcLine(l); if (c) defs[m[1].toLowerCase()] = c.vals[c.vals.length - 1]; });
+    const names = Object.keys(defs).filter(k => !["pi", "x", "mm", "cm", "km", "m"].includes(k));
+    if (!names.length) return raw;
+    const m = String(raw).match(LABEL), head = m ? m[0] : "", body = String(raw).slice(head.length);
+    const out = body.replace(/[a-z]+\d*/gi, w => names.includes(w.toLowerCase()) ? `(${defs[w.toLowerCase()]})` : w);
+    return out === body ? raw : head + out;
+  }
   function judgeLine0(raw, q, prevLines) {
+    raw = useLabels(raw, prevLines);
     const tol = Math.max(q.tol || 0, 1e-6), si = stepInfo(q), key = x => String(x).toLowerCase().replace(/\s+/g, "");
     const SAY = msg => ({ kind: "say", msg }), WRONG = { kind: "wrong" };
     const seen = prevLines.map(l => calcLine(l)).filter(Boolean), prevVals = seen.flatMap(p => p.vals).map(Math.abs).filter(v => v !== 0);
@@ -3317,7 +3329,10 @@ td.dim, td .dim { color: var(--muted); }
       // (then "P = 17" for the width names the wrong thing)
       const isAnsLine = Math.abs(v0 - q.ans) <= Math.max(q.tol || 0, 1e-6);
       const inAnsUnit = isAnsLine && (mvL.some(v => inSet(v, si.ansScaled)) || !/Find (?:its|the) (?:width|diameter|radius|base|height|length|side)/i.test(q.sub || ""));
-      if (mvL.length && !mvL.some(close) && !inAnsUnit) return WRONG;
+      // On a shape made of parts (a rectangle plus a triangle…) a letter can name one part: a = 10 × 8 is a step, not the whole area
+      // (area questions only, and the line must work out a whole part: the rectangle or the triangle, not 10 × 4 on its way to ½ × 10 × 4)
+      const partOk = /²/.test(q.suf || "") && si.terms.length >= 2 && inSet(v0, si.terms.map(Math.abs)) && c.vals.every(v => nearV(v, v0) || Math.abs(v - v0) <= 1e-6 * Math.max(1, Math.abs(v0)));
+      if (mvL.length && !mvL.some(close) && !inAnsUnit && !partOk) return WRONG;
       // a size worked out on the way (r = 5.5 from a diameter of 11): a step
       const hit = mvL.find(v => nearV(v0, v) || Math.abs(v - v0) <= 1e-6 * Math.max(1, Math.abs(v)));
       if (hit !== undefined && Math.abs(hit - q.ans) > Math.max(q.tol || 0, 1e-6) && c.vals.every(v => Math.abs(v - v0) <= 1e-6 * Math.max(1, Math.abs(v0)) || nearV(v, v0))) {
