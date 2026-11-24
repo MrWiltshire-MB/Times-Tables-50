@@ -572,7 +572,6 @@ td.dim, td .dim { color: var(--muted); }
     </div>
     <aside class="side-left">
     <section class="card gp-card" id="gpCard">
-      <span class="gp-count" id="gpCount" title="Free Green Posts earned for this topic" hidden></span>
       <svg viewBox="0 0 80 80" class="cr-icon" aria-hidden="true"><rect x="10" y="12" width="60" height="58" rx="6" fill="#2fa36b"/><path d="M10 58 L22 70 L10 70Z" fill="#1f6b45"/><path d="M24 40 l10 10 l22 -22" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div style="display:grid;gap:8px;min-width:0;justify-items:center">
         <h3>Earn a free Green Post</h3>
@@ -4194,10 +4193,6 @@ td.dim, td .dim { color: var(--muted); }
   }
   function paintGreenPost() {
     const tp = TOPICS.find(t => t.mode === lockMode()), ap = autoPostProgress(wallet()), left = ap.subs.filter(x => !x[1]).length;
-    { // (1), (2)… in the corner: free Green Posts already earned for the current topic
-      const meas = tp.mode === "measurement", n = wallet().vouchers.filter(v => v.r === "greenpost" && v.auto && !v.hwp && (meas ? v.d >= SWITCH_AT : v.d < SWITCH_AT)).length;
-      $("gpCount").hidden = !n; $("gpCount").textContent = `(${n})`;
-    }
     const ltp = TOPICS.find(t => t.mode === lockMode());
     const chip = ([id, ok, b]) => { const lk = partLock(ltp, id);
       return `<button type="button" class="req-btn${gpCls(ok, b)}" data-gp="${id}" title="${lk ? `Mastered! Locked in school hours until you get 80%+ on ${lk.join(", ")}` : `Start a 20-question round of ${id}`}">${ok ? "✓ " : ""}${id}${lk ? " 🔒" : ""}</button>`; };
