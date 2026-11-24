@@ -2279,7 +2279,7 @@ td.dim, td .dim { color: var(--muted); }
     document.querySelectorAll("[data-tick]").forEach(b => b.hidden = !teacherMode());
     paintResume();
     const tc = trickyList().length;
-    $("trickyChip").hidden = tc === 0;
+    $("trickyChip").hidden = true; // the "★ tricky" practice button is turned off
     $("trickyChip").textContent = `★ ${tc} tricky`;
   }
 
@@ -3515,7 +3515,7 @@ td.dim, td .dim { color: var(--muted); }
     }
     const pct = Math.round(score / n * 100);
     $("verdict").textContent = pct + "%  ·  " + time + "  ·  " + (
-      score === n ? "Perfect score!" : pct >= 90 ? "Excellent work." : pct >= 75 ? "Good work. A few to tidy up." : pct >= 50 ? "Getting there. Keep at the tricky ones." : "Keep practising. You'll get there.");
+      score === n ? "Perfect score!" : pct >= 90 ? "Excellent work." : pct >= 75 ? "Good work. A few to tidy up." : pct >= 50 ? "Getting there. Keep practising." : "Keep practising. You'll get there.");
     show("results");
     renderReward(rw);
     const lm = $("lockMsg"), lastRec = P().history[P().history.length - 1];
