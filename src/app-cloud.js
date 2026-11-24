@@ -27,7 +27,7 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
     const m = meta(), s = cstate === "signin" ? `<span class="warn">Signed out. Sign in again to save online.</span>`
       : cstate === "off" ? `<span class="warn">Not saved online yet (no connection). It will keep trying.</span>`
       : m.dirty ? `<span>Saving online…</span>` : `<span class="ok">✓ Saved online</span>`;
-    bar.innerHTML = `${s}<span>·</span><span>${esc(u.email)}</span><button type="button" data-cl="${cstate === "signin" ? "in" : "out"}">${cstate === "signin" ? "Sign in" : "Sign out"}</button>`;
+    bar.innerHTML = `${s}<span>·</span><span>${esc(shown(u.email))}</span><button type="button" data-cl="${cstate === "signin" ? "in" : "out"}">${cstate === "signin" ? "Sign in" : "Sign out"}</button>`;
   }
   bar.addEventListener("click", e => { const b = e.target.closest("[data-cl]"); if (!b) return; if (b.dataset.cl === "in") gate.show(); else signOutNow(); });
 
@@ -76,7 +76,7 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
   }
   function afterSync() {
     rerender(); paintBar();
-    const n = $("ngName"); if (n && !n.value && CA.user()) n.value = nameFromEmail(CA.user().email);
+    const n = $("ngName"); if (n && !n.value && CA.user() && !CA.user().email.endsWith("@" + UDOM)) n.value = nameFromEmail(CA.user().email); // usernames don't give a name
   }
   async function start() {
     const w = document.createElement("div"); w.className = "cl-wait"; w.textContent = "Loading your progress…"; document.body.appendChild(w);
@@ -110,6 +110,6 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
       if (r && r[0] && r[0].updated_at !== meta().at) { await syncIn(); afterSync(); } } catch (e) {}
   });
 
-  const gate = loginUI(CA, { title: "Times Tables <span>50</span>", sub: "Sign in with your school email to save your progress online.",
+  const gate = loginUI(CA, { title: "Times Tables <span>50</span>", sub: "Sign in with the username and password on your slip to save your progress online.",
     onDone: () => { cstate = "ok"; start(); } });
   if (CA.user()) start(); else gate.show();

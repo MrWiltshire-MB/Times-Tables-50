@@ -4675,7 +4675,13 @@ td.dim, td .dim { color: var(--muted); }
   // database's row level security, not by keeping these secret.
   const CLOUD = { url: "https://xovilczevfaqwhtuxsnw.supabase.co", key: "sb_publishable_imq2NpyH97FIbbGySbtvUw_b-7TzTzg",
     domains: ["schools.vic.edu.au", "education.vic.gov.au"] };
-  const okDomain = e => CLOUD.domains.some(d => String(e).toLowerCase().endsWith("@" + d));
+  // Accounts can be a school email or just a username (no email). A username is stored as username@tt50.example.com
+  // behind the scenes (example.com is reserved: nothing is ever sent there) and shown without that ending.
+  const UDOM = "tt50.example.com";
+  const toLogin = v => { v = String(v).trim().toLowerCase(); return v.includes("@") ? v : v + "@" + UDOM; };
+  const shown = e => String(e || "").replace("@" + UDOM, "");
+  const isUsername = v => /^[a-z0-9][a-z0-9._-]{1,29}$/i.test(String(v).trim());
+  const okDomain = e => String(e).toLowerCase().endsWith("@" + UDOM) || CLOUD.domains.some(d => String(e).toLowerCase().endsWith("@" + d));
   // first.last2@schools.vic.edu.au → "First Last"
   const nameFromEmail = e => String(e).split("@")[0].replace(/\d+/g, "").split(/[._-]+/).filter(Boolean)
     .map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ").slice(0, 30);
@@ -4759,13 +4765,14 @@ td.dim, td .dim { color: var(--muted); }
     const q = s => wrap.querySelector(s);
     const say = (t, ok) => { const m = q(".au-msg"); m.textContent = t; m.classList.toggle("ok", !!ok); };
     const busy = async (fn) => { const b = q(".au-go"); b.disabled = true; try { await fn(); } catch (e) { say(authMsg(e)); } b.disabled = false; };
-    const checkEmail = v => { v = v.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+$/.test(v)) { say("Type your school email address."); return null; }
-      return v; };
+    const checkEmail = v => { v = v.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+$/.test(v) && !isUsername(v)) { say("Type your username (or school email)."); return null; }
+      return toLogin(v); };
     // Accounts are made by the teacher (on the teacher page), so there's only one step: email and password.
     function stepPassword() {
       let note = ""; try { note = sessionStorage.getItem("tt50-note") || ""; sessionStorage.removeItem("tt50-note"); } catch (e) {}
       const f = box(`${note ? `<p class="au-note">${esc2(note)}</p>` : ""}<p>${opts.sub}</p>
-        <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
+        <label>Username or email<input type="text" name="em" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="On your slip" value="${esc2(shown(email))}"></label>
         <label>Password<input type="password" name="pw" autocomplete="current-password"></label>
         <button class="au-go" type="submit">Sign in</button>
         <p class="au-small">Your password is on the slip from your teacher. Lost it or forgot it? Ask your teacher for a new one.</p>`);
@@ -4806,7 +4813,7 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
     const m = meta(), s = cstate === "signin" ? `<span class="warn">Signed out. Sign in again to save online.</span>`
       : cstate === "off" ? `<span class="warn">Not saved online yet (no connection). It will keep trying.</span>`
       : m.dirty ? `<span>Saving online…</span>` : `<span class="ok">✓ Saved online</span>`;
-    bar.innerHTML = `${s}<span>·</span><span>${esc(u.email)}</span><button type="button" data-cl="${cstate === "signin" ? "in" : "out"}">${cstate === "signin" ? "Sign in" : "Sign out"}</button>`;
+    bar.innerHTML = `${s}<span>·</span><span>${esc(shown(u.email))}</span><button type="button" data-cl="${cstate === "signin" ? "in" : "out"}">${cstate === "signin" ? "Sign in" : "Sign out"}</button>`;
   }
   bar.addEventListener("click", e => { const b = e.target.closest("[data-cl]"); if (!b) return; if (b.dataset.cl === "in") gate.show(); else signOutNow(); });
 
@@ -4855,7 +4862,7 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
   }
   function afterSync() {
     rerender(); paintBar();
-    const n = $("ngName"); if (n && !n.value && CA.user()) n.value = nameFromEmail(CA.user().email);
+    const n = $("ngName"); if (n && !n.value && CA.user() && !CA.user().email.endsWith("@" + UDOM)) n.value = nameFromEmail(CA.user().email); // usernames don't give a name
   }
   async function start() {
     const w = document.createElement("div"); w.className = "cl-wait"; w.textContent = "Loading your progress…"; document.body.appendChild(w);
@@ -4889,7 +4896,7 @@ body:has(#quiz:not([hidden])) .cl-bar { display: none; }
       if (r && r[0] && r[0].updated_at !== meta().at) { await syncIn(); afterSync(); } } catch (e) {}
   });
 
-  const gate = loginUI(CA, { title: "Times Tables <span>50</span>", sub: "Sign in with your school email to save your progress online.",
+  const gate = loginUI(CA, { title: "Times Tables <span>50</span>", sub: "Sign in with the username and password on your slip to save your progress online.",
     onDone: () => { cstate = "ok"; start(); } });
   if (CA.user()) start(); else gate.show();
   })();

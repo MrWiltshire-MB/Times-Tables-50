@@ -3,6 +3,7 @@
 -- Before running, change the email on the last line to your own email.
 --
 -- How accounts work: teachers make student accounts on the teacher page (no emails are sent).
+-- A student can have a school email or just a username; a username is stored as username@tt50.example.com.
 -- Students can't sign themselves up. Teachers' own accounts are made in the Supabase dashboard
 -- (Authentication → Users → Add user → Create new user, with "Auto Confirm User" ticked).
 
@@ -24,7 +25,7 @@ $$;
 create or replace function public.check_email_domain() returns trigger
   language plpgsql security definer set search_path = '' as $$
 begin
-  if lower(new.email) like '%@schools.vic.edu.au' or lower(new.email) like '%@education.vic.gov.au'
+  if lower(new.email) like '%@schools.vic.edu.au' or lower(new.email) like '%@education.vic.gov.au' or lower(new.email) like '%@tt50.example.com'
      or exists (select 1 from public.teachers t where lower(t.email) = lower(new.email)) then
     return new;
   end if;
@@ -70,7 +71,7 @@ declare
   uid uuid := gen_random_uuid();
 begin
   if not public.is_teacher() then raise exception 'Teachers only'; end if;
-  if e !~ '^[^@[:space:]]+@(schools\.vic\.edu\.au|education\.vic\.gov\.au)$' then return 'not a school email'; end if;
+  if e !~ '^[^@[:space:]]+@(schools\.vic\.edu\.au|education\.vic\.gov\.au|tt50\.example\.com)$' then return 'not a school email'; end if;
   if length(student_password) < 8 then return 'password too short'; end if;
   if exists (select 1 from auth.users u where lower(u.email) = e) then return 'exists'; end if;
   insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -91,7 +92,7 @@ create or replace function public.teacher_set_password(student_email text, stude
 declare e text := lower(trim(student_email));
 begin
   if not public.is_teacher() then raise exception 'Teachers only'; end if;
-  if e !~ '^[^@[:space:]]+@(schools\.vic\.edu\.au|education\.vic\.gov\.au)$' then return 'not a school email'; end if;
+  if e !~ '^[^@[:space:]]+@(schools\.vic\.edu\.au|education\.vic\.gov\.au|tt50\.example\.com)$' then return 'not a school email'; end if;
   if length(student_password) < 8 then return 'password too short'; end if;
   update auth.users set encrypted_password = extensions.crypt(student_password, extensions.gen_salt('bf')), updated_at = now()
     where lower(email) = e;
@@ -106,7 +107,7 @@ create or replace function public.teacher_list_students()
 begin
   if not public.is_teacher() then raise exception 'Teachers only'; end if;
   return query select lower(u.email)::text, u.created_at, u.last_sign_in_at from auth.users u
-    where (lower(u.email) like '%@schools.vic.edu.au' or lower(u.email) like '%@education.vic.gov.au')
+    where (lower(u.email) like '%@schools.vic.edu.au' or lower(u.email) like '%@education.vic.gov.au' or lower(u.email) like '%@tt50.example.com')
       and not exists (select 1 from public.teachers t where lower(t.email) = lower(u.email))
     order by 1;
 end; $$;
@@ -117,7 +118,7 @@ create or replace function public.teacher_delete_student(student_email text) ret
 declare e text := lower(trim(student_email));
 begin
   if not public.is_teacher() then raise exception 'Teachers only'; end if;
-  if e !~ '^[^@[:space:]]+@(schools\.vic\.edu\.au|education\.vic\.gov\.au)$' then return 'not a school email'; end if;
+  if e !~ '^[^@[:space:]]+@(schools\.vic\.edu\.au|education\.vic\.gov\.au|tt50\.example\.com)$' then return 'not a school email'; end if;
   if exists (select 1 from public.teachers t where lower(t.email) = e) then return 'teacher accounts can only be deleted in Supabase'; end if;
   delete from public.progress where lower(email) = e;
   delete from auth.users where lower(email) = e;

@@ -3,7 +3,13 @@
   // database's row level security, not by keeping these secret.
   const CLOUD = { url: "https://xovilczevfaqwhtuxsnw.supabase.co", key: "sb_publishable_imq2NpyH97FIbbGySbtvUw_b-7TzTzg",
     domains: ["schools.vic.edu.au", "education.vic.gov.au"] };
-  const okDomain = e => CLOUD.domains.some(d => String(e).toLowerCase().endsWith("@" + d));
+  // Accounts can be a school email or just a username (no email). A username is stored as username@tt50.example.com
+  // behind the scenes (example.com is reserved: nothing is ever sent there) and shown without that ending.
+  const UDOM = "tt50.example.com";
+  const toLogin = v => { v = String(v).trim().toLowerCase(); return v.includes("@") ? v : v + "@" + UDOM; };
+  const shown = e => String(e || "").replace("@" + UDOM, "");
+  const isUsername = v => /^[a-z0-9][a-z0-9._-]{1,29}$/i.test(String(v).trim());
+  const okDomain = e => String(e).toLowerCase().endsWith("@" + UDOM) || CLOUD.domains.some(d => String(e).toLowerCase().endsWith("@" + d));
   // first.last2@schools.vic.edu.au → "First Last"
   const nameFromEmail = e => String(e).split("@")[0].replace(/\d+/g, "").split(/[._-]+/).filter(Boolean)
     .map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ").slice(0, 30);
@@ -87,13 +93,14 @@
     const q = s => wrap.querySelector(s);
     const say = (t, ok) => { const m = q(".au-msg"); m.textContent = t; m.classList.toggle("ok", !!ok); };
     const busy = async (fn) => { const b = q(".au-go"); b.disabled = true; try { await fn(); } catch (e) { say(authMsg(e)); } b.disabled = false; };
-    const checkEmail = v => { v = v.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+$/.test(v)) { say("Type your school email address."); return null; }
-      return v; };
+    const checkEmail = v => { v = v.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+$/.test(v) && !isUsername(v)) { say("Type your username (or school email)."); return null; }
+      return toLogin(v); };
     // Accounts are made by the teacher (on the teacher page), so there's only one step: email and password.
     function stepPassword() {
       let note = ""; try { note = sessionStorage.getItem("tt50-note") || ""; sessionStorage.removeItem("tt50-note"); } catch (e) {}
       const f = box(`${note ? `<p class="au-note">${esc2(note)}</p>` : ""}<p>${opts.sub}</p>
-        <label>School email<input type="email" name="em" autocomplete="username" placeholder="first.last@schools.vic.edu.au" value="${esc2(email)}"></label>
+        <label>Username or email<input type="text" name="em" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="On your slip" value="${esc2(shown(email))}"></label>
         <label>Password<input type="password" name="pw" autocomplete="current-password"></label>
         <button class="au-go" type="submit">Sign in</button>
         <p class="au-small">Your password is on the slip from your teacher. Lost it or forgot it? Ask your teacher for a new one.</p>`);
