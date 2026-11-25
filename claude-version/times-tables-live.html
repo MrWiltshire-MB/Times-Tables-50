@@ -3039,6 +3039,8 @@ td.dim, td .dim { color: var(--muted); }
   // Questions saved before a change (in an unfinished round or the tricky list) get the newer working and methods
   function upgradeQ(q) {
     if (!q || q.alt) return;
+    // An L-shape can also be split across (top piece + bottom strip), or done as the whole rectangle minus the missing corner
+    if (q.t === "m10H" && q.dia && q.dia.type === "L") { const { W, H, a, b } = q.dia; q.alt = [`${a} × ${H - b} + ${W} × ${b}`, `${W} × ${H} − ${W - a} × ${H - b}`]; return; }
     const h = String(q.html || "").replace(/<[^>]+>/g, " "), n = (h.match(/\d+(\.\d+)?/g) || []).map(Number);
     if (/is packed with small boxes/.test(h) && n.length === 6) {
       const [L, H, W, a, b, c] = n;
@@ -3054,6 +3056,8 @@ td.dim, td .dim { color: var(--muted); }
     const given = ((q.html || "").replace(/<[^>]+>/g, " ") + " " + JSON.stringify(q.dia || {})).replace(/(\d),(\d{3})/g, "$1$2").match(/\d+(\.\d+)?/g) || [];
     if (t) stepVals(t, out, leaves, given.map(Number));
     const terms = t && t.k === "add" && t.items.length <= 8 ? t.items.map(x => (x.neg ? -1 : 1) * x.n.v) : [];
+    const partTerms = terms.map(Math.abs); // the parts of every correct way of splitting the shape (for named parts: a = 5 × 5)
+    (q.alt || []).forEach(a => { const ac = calcLine(a), at = ac && calcTree(ac.norm.split("=")[0]); if (at && at.k === "add" && at.items.length <= 8) at.items.forEach(x => partTerms.push(Math.abs(x.n.v))); });
     // Numbers shown in the question (text, instruction and diagram labels)
     const shown = ((q.html || "").replace(/<[^>]+>/g, " ") + " " + (q.sub || "").replace(/round to \d+ decimal places?/gi, "") + " " + JSON.stringify(q.dia || {})).replace(/(\d),(\d{3})/g, "$1$2").match(/\d+(\.\d+)?/g) || [];
     const qn = shown.map(Number);
@@ -3079,7 +3083,7 @@ td.dim, td .dim { color: var(--muted); }
     const WORDU = { millimetre: "mm", centimetre: "cm", kilometre: "km", metre: "m", millilitre: "mL", kilolitre: "kL", litre: "L", milligram: "mg", kilogram: "kg", gram: "g", tonne: "t", hectare: "ha" };
     (txt.toLowerCase().match(/(milli|centi|kilo)?(metre|litre|gram)|tonne|hectare/g) || []).forEach(w => units.add(WORDU[w] || WORDU[w.replace(/s$/, "")]));
     const needConv = units.size > 1 || (!!q.suf && units.size > 0 && !units.has(uBase(q.suf)));
-    return stepCache[sk] = { terms, vals, leaves: qn, mleaves: leaves, derived, scale, leafReps, repSrc, needConv,
+    return stepCache[sk] = { terms, partTerms, vals, leaves: qn, mleaves: leaves, derived, scale, leafReps, repSrc, needConv,
       // only whole amounts can be rewritten in another unit: the answer, and sums (3 kg + 1.5 kg in grams), not part-products
       valsScaled: scale ? [Math.abs(q.ans), ...(out.sums || [])].flatMap(v => af.map(k => v * k)) : [], ansScaled: af.map(k => Math.abs(q.ans) * k) };
   }
@@ -3324,7 +3328,7 @@ td.dim, td .dim { color: var(--muted); }
       const inAnsUnit = isAnsLine && (mvL.some(v => inSet(v, si.ansScaled)) || !/Find (?:its|the) (?:width|diameter|radius|base|height|length|side)/i.test(q.sub || ""));
       // On a shape made of parts (a rectangle plus a triangle…) a letter can name one part: a = 10 × 8 is a step, not the whole area
       // (area questions only, and the line must work out a whole part: the rectangle or the triangle, not 10 × 4 on its way to ½ × 10 × 4)
-      const partOk = /²/.test(q.suf || "") && si.terms.length >= 2 && inSet(v0, si.terms.map(Math.abs)) && c.vals.every(v => nearV(v, v0) || Math.abs(v - v0) <= 1e-6 * Math.max(1, Math.abs(v0)));
+      const partOk = /²/.test(q.suf || "") && si.terms.length >= 2 && inSet(v0, si.partTerms) && c.vals.every(v => nearV(v, v0) || Math.abs(v - v0) <= 1e-6 * Math.max(1, Math.abs(v0)));
       if (mvL.length && !mvL.some(close) && !inAnsUnit && !partOk) return WRONG;
       // a size worked out on the way (r = 5.5 from a diameter of 11): a step
       const hit = mvL.find(v => nearV(v0, v) || Math.abs(v - v0) <= 1e-6 * Math.max(1, Math.abs(v)));
@@ -3368,7 +3372,9 @@ td.dim, td .dim { color: var(--muted); }
       // a converted amount only counts when the line converts that amount (4 × 1000 for 4 m in mm), not 40 × 100 landing on 4000
       const convOf = si.needConv && si.repSrc.some(([v, a]) => nearV(v0, v) && c.lits.some(n => nearV(n, a)));
       const valid = inSet(v0, si.vals) || inSet(v0, si.valsScaled) || inSet(v0, si.derived) || (convOf && !inSet(v0, si.leaves))
-        || (inSet(v0, qDiffs) && !inSet(v0, si.leaves)); // a missing side worked out: 11 − 6 = 5
+        || (inSet(v0, qDiffs) && !inSet(v0, si.leaves)) // a missing side worked out: 11 − 6 = 5
+        // …even when it happens to equal a side that's marked (9 − 4 = 5 next to a 5 m edge), if the line uses that pair of sides
+        || (Ld && c.lits.length === 2 && [[Ld.W, Ld.a], [Ld.H, Ld.b]].some(([x, y]) => nearV(v0, x - y) && c.lits.includes(x) && c.lits.includes(y)));
       if (valid && !c.lits.length) return SAY("Write a calculation with numbers from the question.");
       if (valid) return c.lits.every(known) ? stepCalc() : c.lits.some(n => n === 0) ? WRONG : USE;
       if (otherUnit) return UNIT;
