@@ -4495,6 +4495,7 @@ td.dim, td .dim { color: var(--muted); }
   // Each code adds 1,000 points and works once per device. Only hashes are stored here, so codes can't be read from the page.
   const GIFT_POINTS = 1000;
   const GIFT_BIG = new Set(["15s0i37m7b"]); // 1,000,000 points
+  const GIFT_50K = new Set(["l55eoxmexp"]); // 50,000 points
   // Special codes: add points and record 20-question rounds of the listed parts on their own at the given score
   // (they count for test week, the free Green Post and free time like real rounds, but not for the daily lock count).
   // Special codes also record 20-question rounds of given parts (for Green Posts, free time etc., not the daily lock),
@@ -4772,8 +4773,8 @@ td.dim, td .dim { color: var(--muted); }
     const h = cyrb53("ttgift:" + raw, 7).toString(36);
     if (!Array.isArray(store.redeemed)) store.redeemed = [];
     msg.className = "gift-msg bad";
-    const sp = GIFT_SPECIAL[h], gp = sp ? sp.points : GIFT_BIG.has(h) ? 1000000 : GIFT_400.has(h) ? 400 : GIFT_POINTS;
-    if (!GIFT_HASHES.has(h) && !GIFT_400.has(h) && !GIFT_BIG.has(h) && !sp) { msg.textContent = "That code isn't right. Check it and try again."; return; }
+    const sp = GIFT_SPECIAL[h], gp = sp ? sp.points : GIFT_BIG.has(h) ? 1000000 : GIFT_50K.has(h) ? 50000 : GIFT_400.has(h) ? 400 : GIFT_POINTS;
+    if (!GIFT_HASHES.has(h) && !GIFT_400.has(h) && !GIFT_BIG.has(h) && !GIFT_50K.has(h) && !sp) { msg.textContent = "That code isn't right. Check it and try again."; return; }
     if (store.redeemed.includes(h)) { msg.textContent = "That code has already been used on this device."; return; }
     const p = wallet();
     store.redeemed.push(h); p.points += gp; p.gifted += gp;
